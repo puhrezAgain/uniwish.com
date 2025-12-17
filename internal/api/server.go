@@ -1,17 +1,43 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
+	"strconv"
 
+	"uniwish.com/internal/api/config"
 	"uniwish.com/internal/api/middleware"
 )
 
-func NewServer(logger *slog.Logger) http.Handler {
+type Server struct {
+	httpServer *http.Server
+	logger     *slog.Logger
+}
+
+func (s *Server) Start() error {
+	s.logger.Info("http server started", "addr", s.httpServer.Addr)
+	return s.httpServer.ListenAndServe()
+}
+
+func (s *Server) Shutdown(shutdownCtx context.Context) error {
+	s.logger.Info("http server shutting down")
+	return s.httpServer.Shutdown(shutdownCtx)
+}
+func NewServer(cfg *config.Config, logger *slog.Logger) *Server {
 	mux := http.NewServeMux()
 
 	RegisterRoutes(mux)
 
 	handler := middleware.Logging(logger)(mux)
-	return handler
+
+	srv := &http.Server{
+		Addr:    ":" + strconv.Itoa(cfg.Port),
+		Handler: handler,
+	}
+
+	return &Server{
+		httpServer: srv,
+		logger:     logger,
+	}
 }

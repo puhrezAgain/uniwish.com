@@ -9,7 +9,7 @@ The original domain to be considered is fashion items because this is regularly 
 Use this product idea to develop a modern backend system building a REST API in Go, queue based workers and Postgres for application usage. 
 
 ## Architecture
-
+```
 ┌───────────────────────────┐
 │     Chrome Extension      │
 │  (Add item to wishlist)   │
@@ -68,3 +68,4 @@ Use this product idea to develop a modern backend system building a REST API in 
 │ - price history           │
 │ - price drop alerts       │
 └───────────────────────────┘
+```

@@ -2,19 +2,22 @@
 uniwish.com/interal/api/handlers/health
 
 simple health endpoint
-*/package handlers
+*/
+package handlers
 
 import (
+	"context"
 	"net/http"
-
-	"uniwish.com/internal/api/services"
 )
 
+type HealthChecker interface {
+	Check(ctx context.Context) error
+}
 type HealthHandler struct {
-	service *services.HealthService
+	service HealthChecker
 }
 
-func NewHealthHandler(srv *services.HealthService) *HealthHandler {
+func NewHealthHandler(srv HealthChecker) *HealthHandler {
 	return &HealthHandler{
 		service: srv,
 	}

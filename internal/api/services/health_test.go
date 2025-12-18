@@ -1,7 +1,7 @@
 /*
-uniwish.com/interal/api/handlers/health_test
+uniwish.com/interal/api/services/health_test
 
-tests for health endpoint
+tests for health service
 */
 package services
 

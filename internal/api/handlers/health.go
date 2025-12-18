@@ -23,8 +23,8 @@ func NewHealthHandler(srv HealthChecker) *HealthHandler {
 	}
 }
 
-func (s *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	err := s.service.Check(r.Context())
+func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	err := h.service.Check(r.Context())
 	if err != nil {
 		http.Error(w, "health check error", http.StatusServiceUnavailable)
 		return

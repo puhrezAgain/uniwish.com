@@ -1,7 +1,7 @@
 /*
-uniwish.com/interal/api/services/health_test
+uniwish.com/interal/api/handlers/health_test
 
-test health service
+test health handler
 */
 package handlers
 
@@ -11,7 +11,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	apiErrors "uniwish.com/internal/api/errors"
+	"uniwish.com/internal/api/errors"
 )
 
 type FakeHealthService struct {
@@ -35,7 +35,7 @@ func TestHealthHandler(t *testing.T) {
 		},
 		{
 			name:           "unhealthy",
-			serviceError:   apiErrors.ErrUnavailable,
+			serviceError:   errors.ErrUnavailable,
 			expectedStatus: http.StatusServiceUnavailable,
 		},
 	}

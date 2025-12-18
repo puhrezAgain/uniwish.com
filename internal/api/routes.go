@@ -16,4 +16,8 @@ func RegisterRoutes(mux *http.ServeMux) {
 	healthServce := services.NewHealthService()
 	healthHandler := handlers.NewHealthHandler(healthServce)
 	mux.Handle("/health", healthHandler)
+
+	itemService := services.NewItemsService()
+	itemHandler := handlers.NewCreateItemHandler(itemService)
+	mux.Handle("/items", itemHandler)
 }

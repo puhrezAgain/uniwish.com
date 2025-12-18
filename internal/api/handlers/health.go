@@ -1,4 +1,8 @@
-package handlers
+/*
+uniwish.com/interal/api/handlers/health
+
+simple health endpoint
+*/package handlers
 
 import (
 	"net/http"

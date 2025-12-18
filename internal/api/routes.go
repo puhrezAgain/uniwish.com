@@ -1,3 +1,8 @@
+/*
+uniwish.com/interal/api/routes
+
+centralizes logic concerned with routing
+*/
 package api
 
 import (

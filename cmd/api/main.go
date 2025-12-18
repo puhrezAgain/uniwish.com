@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,8 +17,9 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg, err := config.Load()
 
-	if err != err {
-		log.Fatal(err)
+	if err != nil {
+		logger.Error("configuration load fail", "err", err)
+		os.Exit(1)
 	}
 
 	ctx, stop := signal.NotifyContext(
@@ -34,7 +34,7 @@ func main() {
 
 	errCh := make(chan error, 1)
 	go func() {
-		if err := server.Start(); err != nil && err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			errCh <- err
 		}
 	}()

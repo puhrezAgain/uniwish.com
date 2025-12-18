@@ -1,3 +1,8 @@
+/*
+uniwish.com/internal/api/server
+
+Contains our wrapper of http.Server adding logging capacity, routes and middleware
+*/
 package api
 
 import (
@@ -15,7 +20,7 @@ type Server struct {
 	logger     *slog.Logger
 }
 
-func (s *Server) Start() error {
+func (s *Server) ListenAndServe() error {
 	s.logger.Info("http server started", "addr", s.httpServer.Addr)
 	return s.httpServer.ListenAndServe()
 }

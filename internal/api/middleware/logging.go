@@ -1,3 +1,8 @@
+/*
+uniwish.com/interal/api/middleware/logging
+
+contains our logging middleware, wrapping http.Response as StatusWriter to capture status code, along other info
+*/
 package middleware
 
 import (

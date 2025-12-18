@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"os"
 	"strconv"
 )
@@ -8,20 +9,26 @@ import (
 func Load() (*Config, error) {
 	cfg := &Config{}
 	cfg.Env = getenv("APP_ENV", "dev")
-	cfg.Port = getenvInt("Port", 8080)
+	port, err := getenvInt("APP_PORT", 8080)
+
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.Port = port
 
 	return cfg, nil
 }
 
-func getenvInt(key string, def int) int {
+func getenvInt(key string, def int) (int, error) {
 	if v := os.Getenv(key); v != "" {
 		i, err := strconv.Atoi(v)
 		if err != nil {
-			panic("invalid int for " + key)
+			return 0, fmt.Errorf("invalid int for %s: %w", key, err)
 		}
-		return i
+		return i, nil
 	}
-	return def
+	return def, nil
 }
 func getenv(key, def string) string {
 	if v := os.Getenv(key); v != "" {

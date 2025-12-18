@@ -6,9 +6,27 @@ simple health endpoint
 
 import (
 	"net/http"
+
+	"uniwish.com/internal/api/services"
 )
 
-func Health(w http.ResponseWriter, _ *http.Request) {
+type HealthHandler struct {
+	service *services.HealthService
+}
+
+func NewHealthHandler(srv *services.HealthService) *HealthHandler {
+	return &HealthHandler{
+		service: srv,
+	}
+}
+
+func (s *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	err := s.service.Check(r.Context())
+	if err != nil {
+		http.Error(w, "health check error", http.StatusServiceUnavailable)
+		return
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("ok"))
 }

@@ -9,8 +9,11 @@ import (
 	"net/http"
 
 	"uniwish.com/internal/api/handlers"
+	"uniwish.com/internal/api/services"
 )
 
 func RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/health", handlers.Health)
+	healthServce := services.NewHealthService()
+	healthHandler := handlers.NewHealthHandler(healthServce)
+	mux.Handle("/health", healthHandler)
 }

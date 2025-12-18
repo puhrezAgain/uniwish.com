@@ -7,10 +7,11 @@ package handlers
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	apiErrors "uniwish.com/internal/api/errors"
 )
 
 type FakeHealthService struct {
@@ -34,12 +35,13 @@ func TestHealthHandler(t *testing.T) {
 		},
 		{
 			name:           "unhealthy",
-			serviceError:   errors.ErrUnsupported,
+			serviceError:   apiErrors.ErrUnavailable,
 			expectedStatus: http.StatusServiceUnavailable,
 		},
 	}
 
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			srv := &FakeHealthService{err: tt.serviceError}
 			handler := NewHealthHandler(srv)

@@ -1,7 +1,7 @@
 /*
-uniwish.com/interal/api/services/health_test
+uniwish.com/interal/api/services/scrape_request_test
 
-tests for item service
+tests for scrape request service
 */
 package services
 
@@ -60,7 +60,7 @@ func TestItemService(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			srv := NewItemsService()
+			srv := NewScrapeRequestService()
 			r, e := srv.Create(context.Background(), tt.url)
 
 			if e != tt.expectedError {

@@ -1,7 +1,7 @@
 /*
-uniwish.com/interal/api/services/item
+uniwish.com/interal/api/services/scrape_request
 
-items http service
+scrape_request http service
 */
 package handlers
 
@@ -13,29 +13,29 @@ import (
 	"uniwish.com/internal/api/errors"
 )
 
-type ItemCreator interface {
+type ScrapeRequestCreator interface {
 	Create(ctx context.Context, rawUrl string) (string, error)
 }
 
-type CreateItemHandler struct {
-	service ItemCreator
+type CreateScrapeRequestHandler struct {
+	service ScrapeRequestCreator
 }
 
-func NewCreateItemHandler(srv ItemCreator) *CreateItemHandler {
-	return &CreateItemHandler{service: srv}
+func NewCreateItemHandler(srv ScrapeRequestCreator) *CreateScrapeRequestHandler {
+	return &CreateScrapeRequestHandler{service: srv}
 }
 
-type createItemRequest struct {
+type createScrapeRequestRequest struct {
 	URL string `json:"url"`
 }
 
-type createItemResponse struct {
+type createScrapeRequestResponse struct {
 	ID     string `json:"id"`
 	Status string `json:"status"`
 }
 
-func (h *CreateItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	var req createItemRequest
+func (h *CreateScrapeRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var req createScrapeRequestRequest
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error": "invalid_json"}`, http.StatusBadRequest)
@@ -55,7 +55,7 @@ func (h *CreateItemHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := createItemResponse{
+	resp := createScrapeRequestResponse{
 		ID:     id,
 		Status: "pending",
 	}

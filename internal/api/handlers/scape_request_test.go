@@ -1,7 +1,7 @@
 /*
-uniwish.com/interal/api/handlers/item_test
+uniwish.com/interal/api/handlers/scape_request_test
 
-test item handler
+test scrape request handler
 */
 package handlers
 
@@ -31,7 +31,7 @@ func TestCreateItemService(t *testing.T) {
 		name                 string
 		service              FakeItemService
 		expectedStatus       int
-		expectedJSONResponse createItemResponse
+		expectedJSONResponse createScrapeRequestResponse
 	}{
 		{
 			name: "invalid_input",
@@ -40,7 +40,7 @@ func TestCreateItemService(t *testing.T) {
 				err: errors.ErrInputInvalid,
 			},
 			expectedStatus:       http.StatusBadRequest,
-			expectedJSONResponse: createItemResponse{},
+			expectedJSONResponse: createScrapeRequestResponse{},
 		},
 		{
 			name: "store_unavailable",
@@ -49,7 +49,7 @@ func TestCreateItemService(t *testing.T) {
 				err: errors.ErrStoreUnsupported,
 			},
 			expectedStatus:       http.StatusUnprocessableEntity,
-			expectedJSONResponse: createItemResponse{},
+			expectedJSONResponse: createScrapeRequestResponse{},
 		},
 		{
 			name: "internal_error",
@@ -58,7 +58,7 @@ func TestCreateItemService(t *testing.T) {
 				err: errors.ErrUnavailable,
 			},
 			expectedStatus:       http.StatusInternalServerError,
-			expectedJSONResponse: createItemResponse{},
+			expectedJSONResponse: createScrapeRequestResponse{},
 		},
 		{
 			name: "healthy",
@@ -67,7 +67,7 @@ func TestCreateItemService(t *testing.T) {
 				err: nil,
 			},
 			expectedStatus: http.StatusAccepted,
-			expectedJSONResponse: createItemResponse{
+			expectedJSONResponse: createScrapeRequestResponse{
 				ID:     "fakeid",
 				Status: "pending",
 			},
@@ -92,7 +92,7 @@ func TestCreateItemService(t *testing.T) {
 			}
 
 			if rr.Code == http.StatusAccepted {
-				var actualResp createItemResponse
+				var actualResp createScrapeRequestResponse
 				if err := json.NewDecoder(rr.Body).Decode(&actualResp); err != nil {
 					t.Fatal(err)
 				}

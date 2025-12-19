@@ -36,9 +36,11 @@ type createScrapeRequestResponse struct {
 
 func (h *CreateScrapeRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var req createScrapeRequestRequest
+	w.Header().Set("Content-Type", "application/json")
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, `{"error": "invalid_json"}`, http.StatusBadRequest)
+		return
 	}
 
 	id, err := h.service.Create(r.Context(), req.URL)
@@ -60,7 +62,6 @@ func (h *CreateScrapeRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		Status: "pending",
 	}
 
-	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 	json.NewEncoder(w).Encode(resp)
 }

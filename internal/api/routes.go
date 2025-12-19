@@ -19,5 +19,5 @@ func RegisterRoutes(mux *http.ServeMux) {
 
 	itemService := services.NewScrapeRequestService()
 	itemHandler := handlers.NewCreateItemHandler(itemService)
-	mux.Handle("/items", itemHandler)
+	mux.Handle("/scrape-requests", itemHandler)
 }

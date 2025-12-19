@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	_ "github.com/lib/pq"
+
 	"uniwish.com/internal/api"
 	"uniwish.com/internal/api/config"
 )

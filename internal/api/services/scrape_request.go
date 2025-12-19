@@ -23,12 +23,12 @@ func (s *ScrapeRequestService) Create(ctx context.Context, rawUrl string) (strin
 		return "", errors.ErrInputInvalid
 	}
 
-	url, err := url.Parse(rawUrl)
-	if err != nil || url.Scheme == "" || url.Host == "" {
+	parsed, err := url.Parse(rawUrl)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return "", errors.ErrInputInvalid
 	}
 
-	if url.Host != "store.com" { // TODO: when scrapers defined, change this to ensure host maps to a scraper
+	if parsed.Host != "store.com" { // TODO: when scrapers defined, change this to ensure host maps to a scraper
 		return "", errors.ErrStoreUnsupported
 	}
 

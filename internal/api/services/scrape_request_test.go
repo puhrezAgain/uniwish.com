@@ -7,64 +7,76 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 
-	"uniwish.com/internal/api/errors"
+	"github.com/google/uuid"
+	apiErrors "uniwish.com/internal/api/errors"
 )
 
-func TestItemService(t *testing.T) {
+var fakeId uuid.UUID = uuid.New()
+
+type FakeRepo struct {
+	id uuid.UUID
+}
+
+func (r *FakeRepo) Insert(_ context.Context, _ string) (uuid.UUID, error) {
+	return fakeId, nil
+}
+
+func TestScrapeRequestService(t *testing.T) {
 	tests := []struct {
 		name           string
 		url            string
 		expectedError  error
-		expectedResult string
+		expectedResult uuid.UUID
 	}{
 		{
 			name:           "no_url",
 			url:            "",
-			expectedError:  errors.ErrInputInvalid,
-			expectedResult: "",
+			expectedError:  apiErrors.ErrInputInvalid,
+			expectedResult: uuid.Nil,
 		},
 		{
 			name:           "parse_error",
 			url:            "http://[::1",
-			expectedError:  errors.ErrInputInvalid,
-			expectedResult: "",
+			expectedError:  apiErrors.ErrInputInvalid,
+			expectedResult: uuid.Nil,
 		},
 		{
 			name:           "no_scheme",
 			url:            "example.com",
-			expectedError:  errors.ErrInputInvalid,
-			expectedResult: "",
+			expectedError:  apiErrors.ErrInputInvalid,
+			expectedResult: uuid.Nil,
 		},
 		{
 			name:           "no_host",
 			url:            "http://",
-			expectedError:  errors.ErrInputInvalid,
-			expectedResult: "",
+			expectedError:  apiErrors.ErrInputInvalid,
+			expectedResult: uuid.Nil,
 		},
 		{
 			name:           "unsupported_host",
 			url:            "http://whatever.com",
-			expectedError:  errors.ErrStoreUnsupported,
-			expectedResult: "",
+			expectedError:  apiErrors.ErrStoreUnsupported,
+			expectedResult: uuid.Nil,
 		},
 		{
 			name:           "healthy",
 			url:            "http://store.com",
 			expectedError:  nil,
-			expectedResult: "fakeid",
+			expectedResult: fakeId,
 		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			srv := NewScrapeRequestService()
-			r, e := srv.Create(context.Background(), tt.url)
+			srv := NewScrapeRequestService(&FakeRepo{})
+			r, e := srv.Request(context.Background(), tt.url)
 
-			if e != tt.expectedError {
-				t.Fatalf("expected error %v, recieved %v", tt.expectedError, e)
+			if !errors.Is(e, tt.expectedError) {
+				t.Fatalf("expected error %v, received %v", tt.expectedError, e)
 			}
 
 			if r != tt.expectedResult {

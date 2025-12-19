@@ -9,30 +9,32 @@ import (
 	"context"
 	"net/url"
 
+	"github.com/google/uuid"
 	"uniwish.com/internal/api/errors"
+	"uniwish.com/internal/api/repository"
 )
 
-type ScrapeRequestService struct{}
-
-func NewScrapeRequestService() *ScrapeRequestService {
-	return &ScrapeRequestService{}
+type ScrapeRequestService struct {
+	repo repository.ScrapeRequestRepository
 }
 
-func (s *ScrapeRequestService) Create(ctx context.Context, rawUrl string) (string, error) {
+func NewScrapeRequestService(r repository.ScrapeRequestRepository) *ScrapeRequestService {
+	return &ScrapeRequestService{repo: r}
+}
+
+func (s *ScrapeRequestService) Request(ctx context.Context, rawUrl string) (uuid.UUID, error) {
 	if rawUrl == "" {
-		return "", errors.ErrInputInvalid
+		return uuid.Nil, errors.ErrInputInvalid
 	}
 
 	parsed, err := url.Parse(rawUrl)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return "", errors.ErrInputInvalid
+		return uuid.Nil, errors.ErrInputInvalid
 	}
 
 	if parsed.Host != "store.com" { // TODO: when scrapers defined, change this to ensure host maps to a scraper
-		return "", errors.ErrStoreUnsupported
+		return uuid.Nil, errors.ErrStoreUnsupported
 	}
 
-	// TODO: insert a scrape request
-
-	return "fakeid", nil // TODO: when db defined, change this to return created / existing item id
+	return s.repo.Insert(ctx, rawUrl)
 }

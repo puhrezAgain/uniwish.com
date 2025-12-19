@@ -10,18 +10,19 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/google/uuid"
 	"uniwish.com/internal/api/errors"
 )
 
-type ScrapeRequestCreator interface {
-	Create(ctx context.Context, rawUrl string) (string, error)
+type ScrapeRequester interface {
+	Request(ctx context.Context, rawUrl string) (uuid.UUID, error)
 }
 
 type CreateScrapeRequestHandler struct {
-	service ScrapeRequestCreator
+	service ScrapeRequester
 }
 
-func NewCreateItemHandler(srv ScrapeRequestCreator) *CreateScrapeRequestHandler {
+func NewCreateItemHandler(srv ScrapeRequester) *CreateScrapeRequestHandler {
 	return &CreateScrapeRequestHandler{service: srv}
 }
 
@@ -30,8 +31,8 @@ type createScrapeRequestRequest struct {
 }
 
 type createScrapeRequestResponse struct {
-	ID     string `json:"id"`
-	Status string `json:"status"`
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
 }
 
 func (h *CreateScrapeRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -43,7 +44,7 @@ func (h *CreateScrapeRequestHandler) ServeHTTP(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	id, err := h.service.Create(r.Context(), req.URL)
+	id, err := h.service.Request(r.Context(), req.URL)
 
 	if err != nil {
 		switch err {

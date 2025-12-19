@@ -14,29 +14,32 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"uniwish.com/internal/api/errors"
 )
 
-type FakeItemService struct {
-	id  string
+var fakeId uuid.UUID = uuid.New()
+
+type FakeScrapeRequester struct {
+	id  uuid.UUID
 	err error
 }
 
-func (s *FakeItemService) Create(ctx context.Context, _ string) (string, error) {
+func (s *FakeScrapeRequester) Request(ctx context.Context, _ string) (uuid.UUID, error) {
 	return s.id, s.err
 }
 
-func TestCreateItemService(t *testing.T) {
+func TestCreateScrapeRequester(t *testing.T) {
 	tests := []struct {
 		name                 string
-		service              FakeItemService
+		service              FakeScrapeRequester
 		expectedStatus       int
 		expectedJSONResponse createScrapeRequestResponse
 	}{
 		{
 			name: "invalid_input",
-			service: FakeItemService{
-				id:  "",
+			service: FakeScrapeRequester{
+				id:  fakeId,
 				err: errors.ErrInputInvalid,
 			},
 			expectedStatus:       http.StatusBadRequest,
@@ -44,8 +47,8 @@ func TestCreateItemService(t *testing.T) {
 		},
 		{
 			name: "store_unavailable",
-			service: FakeItemService{
-				id:  "",
+			service: FakeScrapeRequester{
+				id:  fakeId,
 				err: errors.ErrStoreUnsupported,
 			},
 			expectedStatus:       http.StatusUnprocessableEntity,
@@ -53,8 +56,8 @@ func TestCreateItemService(t *testing.T) {
 		},
 		{
 			name: "internal_error",
-			service: FakeItemService{
-				id:  "",
+			service: FakeScrapeRequester{
+				id:  fakeId,
 				err: errors.ErrUnavailable,
 			},
 			expectedStatus:       http.StatusInternalServerError,
@@ -62,13 +65,13 @@ func TestCreateItemService(t *testing.T) {
 		},
 		{
 			name: "healthy",
-			service: FakeItemService{
-				id:  "fakeid",
+			service: FakeScrapeRequester{
+				id:  fakeId,
 				err: nil,
 			},
 			expectedStatus: http.StatusAccepted,
 			expectedJSONResponse: createScrapeRequestResponse{
-				ID:     "fakeid",
+				ID:     fakeId,
 				Status: "pending",
 			},
 		},
@@ -80,7 +83,7 @@ func TestCreateItemService(t *testing.T) {
 			srv := &tt.service
 			handler := NewCreateItemHandler(srv)
 
-			req := httptest.NewRequest(http.MethodPost, "/items", strings.NewReader(`{"url": "fake.com"}`))
+			req := httptest.NewRequest(http.MethodPost, "/scrape-requests", strings.NewReader(`{"url": "fake.com"}`))
 			req.Header.Set("Content-Type", "application/json")
 
 			rr := httptest.NewRecorder()

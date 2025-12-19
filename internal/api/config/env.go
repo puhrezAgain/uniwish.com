@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -9,8 +10,13 @@ import (
 func Load() (*Config, error) {
 	cfg := &Config{}
 	cfg.Env = getenv("APP_ENV", "dev")
-	port, err := getenvInt("APP_PORT", 8080)
 
+	cfg.DBURL = getenv("DATABASE_URL", "")
+	if cfg.DBURL == "" {
+		return nil, errors.New("DATABASE_URL required in environment")
+	}
+
+	port, err := getenvInt("APP_PORT", 8080)
 	if err != nil {
 		return nil, err
 	}

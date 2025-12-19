@@ -7,6 +7,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -29,10 +30,10 @@ func (s *Server) Shutdown(shutdownCtx context.Context) error {
 	s.logger.Info("http server shutting down")
 	return s.httpServer.Shutdown(shutdownCtx)
 }
-func NewServer(cfg *config.Config, logger *slog.Logger) *Server {
+func NewServer(cfg *config.Config, logger *slog.Logger, db *sql.DB) *Server {
 	mux := http.NewServeMux()
 
-	RegisterRoutes(mux)
+	RegisterRoutes(mux, db)
 
 	handler := middleware.Logging(logger)(mux)
 

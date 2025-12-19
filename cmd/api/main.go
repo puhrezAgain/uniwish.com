@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log/slog"
 	"net/http"
 	"os"
@@ -24,15 +25,28 @@ func main() {
 		os.Exit(1)
 	}
 
+	db, err := sql.Open("postgres", cfg.DBURL)
+
+	if err != nil {
+		logger.Error("db open failed", "err", err)
+		os.Exit(1)
+	}
+
+	defer db.Close()
+
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
 		syscall.SIGTERM,
 	)
-
 	defer stop()
 
-	server := api.NewServer(cfg, logger)
+	if err := db.PingContext(ctx); err != nil {
+		logger.Error("db ping failed", "err", err)
+		os.Exit(1)
+	}
+
+	server := api.NewServer(cfg, logger, db)
 
 	errCh := make(chan error, 1)
 	go func() {

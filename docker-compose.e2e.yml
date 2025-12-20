@@ -1,0 +1,66 @@
+name: uniwish_e2e
+services: 
+  postgres_e2e:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: uniwish
+      POSTGRES_PASSWORD: uniwish
+      POSTGRES_DB: uniwish_e2e
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uniwish -d uniwish_e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  api_e2e:
+    build: 
+      context: .
+      target: api
+    depends_on:
+      migrate_e2e:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: "postgres://uniwish:uniwish@postgres_e2e:5432/uniwish_e2e?sslmode=disable"
+  api_health:
+    image: curlimages/curl
+    depends_on:
+      api_e2e:
+        condition: service_started
+    command:
+      - sh 
+      - -c
+      - |
+        until curl -sf http://api_e2e:8080/health; do 
+          sleep 1
+        done
+  migrate_e2e: 
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: "postgres://uniwish:uniwish@postgres_e2e:5432/uniwish_e2e?sslmode=disable"
+    command:
+      - -path
+      - /app/migrations
+      - -database
+      - postgres://uniwish:uniwish@postgres_e2e:5432/uniwish_e2e?sslmode=disable
+      - up
+    depends_on:
+      postgres_e2e:
+        condition: service_healthy
+  e2e:
+    build:
+      context: .
+      target: test
+    environment:
+      DATABASE_URL: "postgres://uniwish:uniwish@postgres_e2e:5432/uniwish_e2e?sslmode=disable"
+      E2E_TESTS: "1"
+      API_BASE_URL: http://api_e2e:8080
+      INTEGRATION_TESTS: "1"
+    entrypoint:
+      - go
+      - test
+      - ./internal/api/e2e
+      - -v
+    depends_on:
+      api_health:
+        condition: service_completed_successfully

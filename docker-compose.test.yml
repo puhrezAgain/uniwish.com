@@ -20,6 +20,7 @@ services:
         condition: service_completed_successfully
     environment:
       DATABASE_URL: "postgres://uniwish:uniwish@postgres_test:5432/uniwish_test?sslmode=disable"
+      INTEGRATION_TESTS: 1
   migrate_test: 
     build:
       context: .
@@ -35,3 +36,17 @@ services:
     depends_on:
       postgres_test:
         condition: service_healthy
+  test-dev:
+    profiles: ["dev"]
+    build:
+      context: .
+      target: test
+    volumes:
+      - .:/app
+    environment:
+      DATABASE_URL: "postgres://uniwish:uniwish@postgres_test:5432/uniwish_test?sslmode=disable"
+      INTEGRATION_TESTS: "1"
+    entrypoint: ["go", "test", "./...", "-count=1", "-v"]
+    depends_on:
+      migrate_test:
+        condition: service_completed_successfully

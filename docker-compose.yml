@@ -18,6 +18,7 @@ services:
   api:
     build: 
       context: .
+      target: api
     depends_on:
       postgres: 
         condition: service_healthy
@@ -25,6 +26,21 @@ services:
       DATABASE_URL: "postgres://uniwish:uniwish@postgres:5432/uniwish?sslmode=disable"
     ports:
       - "8080:8080"
+  migrate: 
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: "postgres://uniwish:uniwish@postgres:5432/uniwish?sslmode=disable"
+    command:
+      - -path
+      - /app/migrations
+      - -database
+      - postgres://uniwish:uniwish@postgres:5432/uniwish?sslmode=disable
+      - up
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   postgres_data:

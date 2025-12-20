@@ -1,0 +1,37 @@
+name: uniwish_test
+services: 
+  postgres_test:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_USER: uniwish
+      POSTGRES_PASSWORD: uniwish
+      POSTGRES_DB: uniwish_test
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uniwish -d uniwish_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  tests:
+    build: 
+      context: .
+      target: test
+    depends_on:
+      migrate_test:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: "postgres://uniwish:uniwish@postgres_test:5432/uniwish_test?sslmode=disable"
+  migrate_test: 
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: "postgres://uniwish:uniwish@postgres_test:5432/uniwish_test?sslmode=disable"
+    command:
+      - -path
+      - /app/migrations
+      - -database
+      - postgres://uniwish:uniwish@postgres_test:5432/uniwish_test?sslmode=disable
+      - up
+    depends_on:
+      postgres_test:
+        condition: service_healthy

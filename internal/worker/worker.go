@@ -43,7 +43,7 @@ func ClaimJob(
 }
 
 func ProcessJob(
-	job *repository.ScrapeRequest, ctx context.Context,
+	ctx context.Context, job *repository.ScrapeRequest,
 	scraperFactory func(string) (services.BaseScraper, error),
 	repoWithTxFactory func() (repository.ScrapeRequestRepository, repository.Transaction, error),
 ) error {
@@ -55,12 +55,14 @@ func ProcessJob(
 	scraper, err := scraperFactory(job.URL)
 	if err != nil {
 		repo.MarkFailed(ctx, job.ID)
+		tx.Commit()
 		return err
 	}
 
 	_, err = scraper.Scrape(ctx, job.URL)
 	if err != nil {
 		repo.MarkFailed(ctx, job.ID)
+		tx.Commit()
 		return err
 	}
 
@@ -80,7 +82,7 @@ func RunOnce(ctx context.Context,
 	if err != nil {
 		return err
 	}
-	err = ProcessJob(job, ctx, scraperFactory, repoWithTxFactory)
+	err = ProcessJob(ctx, job, scraperFactory, repoWithTxFactory)
 	if err != nil {
 		return err
 	}

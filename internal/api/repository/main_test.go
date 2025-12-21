@@ -17,6 +17,10 @@ import (
 var testDB *sql.DB
 
 func TestMain(m *testing.M) {
+	if os.Getenv("INTEGRATION_TESTS") == "" {
+		log.Println("INTEGRATION_TESTS not set, skipping")
+		os.Exit(0)
+	}
 	dsn := os.Getenv("DATABASE_URL")
 
 	if dsn == "" {

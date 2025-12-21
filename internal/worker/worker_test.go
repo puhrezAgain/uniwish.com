@@ -7,6 +7,7 @@ package worker
 
 import (
 	"context"
+	"database/sql"
 	"reflect"
 	"testing"
 
@@ -23,17 +24,20 @@ type FakeRepo struct {
 	MarkFailedCalled bool
 }
 
+func NewFakeJob() *repository.ScrapeRequest {
+	return &repository.ScrapeRequest{
+		ID:     uuid.New(),
+		URL:    "http://store.com",
+		Status: "pending",
+	}
+}
 func (r *FakeRepo) Insert(ctx context.Context, url string) (uuid.UUID, error) {
 	r.InsertCalled = true
 	return uuid.New(), nil
 }
 func (r *FakeRepo) Dequeue(ctx context.Context) (*repository.ScrapeRequest, error) {
 	r.DequeueCalled = true
-	return &repository.ScrapeRequest{
-		ID:     uuid.New(),
-		URL:    "http://store.com",
-		Status: "pending",
-	}, nil
+	return NewFakeJob(), nil
 }
 func (r *FakeRepo) MarkDone(ctx context.Context, id uuid.UUID) error {
 	r.MarkDoneCalled = true
@@ -100,8 +104,35 @@ func (f *FakeNoJobsRepo) Dequeue(ctx context.Context) (*repository.ScrapeRequest
 	return nil, nil
 }
 
+type FakeDBErrorRepo struct {
+	FakeRepo
+}
+
+func (f *FakeDBErrorRepo) Dequeue(ctx context.Context) (*repository.ScrapeRequest, error) {
+	f.DequeueCalled = true
+	return nil, sql.ErrConnDone
+}
+
 func NewUnsupoportedScraper(_ string) (services.BaseScraper, error) {
 	return nil, errors.ErrStoreUnsupported
+}
+
+type FaultyCommitTransaction struct {
+	FakeTransaction
+}
+
+func (t *FaultyCommitTransaction) Commit() error {
+	t.CommitCalled = true
+	return sql.ErrTxDone
+}
+
+type FakeFaultyScraper struct {
+	ScrapeCalled bool
+}
+
+func (s *FakeFaultyScraper) Scrape(ctx context.Context, url string) (*services.PlaceholderProduct, error) {
+	s.ScrapeCalled = true
+	return nil, errors.ErrScrapeFailed
 }
 
 func getBoolField(v any, name string) bool {
@@ -197,6 +228,72 @@ func TestRunOnce(t *testing.T) {
 				{"ScrapeCalled", false},
 			},
 		},
+		{
+			name:         "db_error",
+			repo:         &FakeDBErrorRepo{},
+			trans:        &FakeTransaction{},
+			scraper:      &FakeScraper{},
+			factoryError: nil,
+			repoKeyToExpectedValue: []StringBools{
+				{"DequeueCalled", true},
+				{"MarkDoneCalled", false},
+				{"MarkFailedCalled", false},
+			},
+			transKeyToExpectedValue: []StringBools{
+				{"CommitCalled", false},
+				{"RollbackCalled", true},
+			},
+			scraperFactoryKeyToExpectedValue: []StringBools{
+				{"factoryCalled", false},
+			},
+			scraperKeyToExpectedValue: []StringBools{
+				{"ScrapeCalled", false},
+			},
+		},
+		{
+			name:         "faulty_commit",
+			repo:         &FakeRepo{},
+			trans:        &FaultyCommitTransaction{},
+			scraper:      &FakeScraper{},
+			factoryError: nil,
+			repoKeyToExpectedValue: []StringBools{
+				{"DequeueCalled", true},
+				{"MarkDoneCalled", false},
+				{"MarkFailedCalled", false},
+			},
+			transKeyToExpectedValue: []StringBools{
+				{"CommitCalled", true},
+				{"RollbackCalled", true},
+			},
+			scraperFactoryKeyToExpectedValue: []StringBools{
+				{"factoryCalled", false},
+			},
+			scraperKeyToExpectedValue: []StringBools{
+				{"ScrapeCalled", false},
+			},
+		},
+		{
+			name:         "faulty_scrape",
+			repo:         &FakeRepo{},
+			trans:        &FakeTransaction{},
+			scraper:      &FakeFaultyScraper{},
+			factoryError: nil,
+			repoKeyToExpectedValue: []StringBools{
+				{"DequeueCalled", true},
+				{"MarkDoneCalled", false},
+				{"MarkFailedCalled", true},
+			},
+			transKeyToExpectedValue: []StringBools{
+				{"CommitCalled", true},
+				{"RollbackCalled", false},
+			},
+			scraperFactoryKeyToExpectedValue: []StringBools{
+				{"factoryCalled", true},
+			},
+			scraperKeyToExpectedValue: []StringBools{
+				{"ScrapeCalled", true},
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -216,14 +313,69 @@ func TestRunOnce(t *testing.T) {
 			}
 			for _, p := range tt.scraperFactoryKeyToExpectedValue {
 				if getBoolField(scraperFactory, p.Key) != p.Value {
-					t.Fatalf("registry.%s is not %t", p.Key, p.Value)
+					t.Fatalf("scrapeFactory.%s is not %t", p.Key, p.Value)
 				}
 			}
 			for _, p := range tt.scraperKeyToExpectedValue {
 				if getBoolField(tt.scraper, p.Key) != p.Value {
-					t.Fatalf("registry.scraper.%s is not %t", p.Key, p.Value)
+					t.Fatalf("scraper.%s is not %t", p.Key, p.Value)
 				}
 			}
 		})
+	}
+}
+
+func TestProcessJob_FaultyCommit(t *testing.T) {
+	repo := &FakeRepo{}
+	trans := &FaultyCommitTransaction{}
+	scraper := &FakeScraper{}
+	repoFactory := NewFakeRepoFactory(repo, trans)
+	scraperFactory := NewFakeScraperFactory(scraper, nil)
+	ProcessJob(context.Background(), NewFakeJob(), scraperFactory.scaperFactoryFunc, repoFactory)
+	if !repo.MarkDoneCalled {
+		t.Fatal("markdone not called")
+	}
+	if !trans.CommitCalled {
+		t.Fatal("trans commit not called")
+	}
+	if !trans.RollbackCalled {
+		t.Fatal("rollback not called")
+	}
+}
+
+func TestClaimJob_FaultyTx(t *testing.T) {
+	repo := &FakeRepo{}
+	trans := &FakeTransaction{}
+	_, err := ClaimJob(
+		context.Background(),
+		func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
+			return repo, trans, sql.ErrConnDone
+		},
+	)
+	if err == nil {
+		t.Fatal("error nil")
+	}
+	if repo.DequeueCalled {
+		t.Fatal("dequeue called")
+	}
+}
+
+func TestProcess_FaultyTx(t *testing.T) {
+	repo := &FakeRepo{}
+	trans := &FakeTransaction{}
+	scraperFactory := NewFakeScraperFactory(&FakeScraper{}, nil)
+
+	err := ProcessJob(
+		context.Background(), NewFakeJob(),
+		scraperFactory.scaperFactoryFunc,
+		func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
+			return repo, trans, sql.ErrConnDone
+		},
+	)
+	if err == nil {
+		t.Fatal("error nil")
+	}
+	if scraperFactory.factoryCalled {
+		t.Fatal("factory called")
 	}
 }

@@ -29,10 +29,15 @@ func (s *FakeScrapeRequester) Request(ctx context.Context, _ string) (uuid.UUID,
 	return s.id, s.err
 }
 
+func FakeJSON() string {
+	return `{"url": "fake.com"}`
+}
+
 func TestCreateScrapeRequester(t *testing.T) {
 	tests := []struct {
 		name                 string
 		service              FakeScrapeRequester
+		payload              string
 		expectedStatus       int
 		expectedJSONResponse createScrapeRequestResponse
 	}{
@@ -42,6 +47,7 @@ func TestCreateScrapeRequester(t *testing.T) {
 				id:  fakeId,
 				err: errors.ErrInputInvalid,
 			},
+			payload:              FakeJSON(),
 			expectedStatus:       http.StatusBadRequest,
 			expectedJSONResponse: createScrapeRequestResponse{},
 		},
@@ -51,6 +57,7 @@ func TestCreateScrapeRequester(t *testing.T) {
 				id:  fakeId,
 				err: errors.ErrStoreUnsupported,
 			},
+			payload:              FakeJSON(),
 			expectedStatus:       http.StatusUnprocessableEntity,
 			expectedJSONResponse: createScrapeRequestResponse{},
 		},
@@ -60,6 +67,7 @@ func TestCreateScrapeRequester(t *testing.T) {
 				id:  fakeId,
 				err: errors.ErrUnavailable,
 			},
+			payload:              FakeJSON(),
 			expectedStatus:       http.StatusInternalServerError,
 			expectedJSONResponse: createScrapeRequestResponse{},
 		},
@@ -69,11 +77,22 @@ func TestCreateScrapeRequester(t *testing.T) {
 				id:  fakeId,
 				err: nil,
 			},
+			payload:        FakeJSON(),
 			expectedStatus: http.StatusAccepted,
 			expectedJSONResponse: createScrapeRequestResponse{
 				ID:     fakeId,
 				Status: "pending",
 			},
+		},
+		{
+			name: "bad_json",
+			service: FakeScrapeRequester{
+				id:  fakeId,
+				err: nil,
+			},
+			payload:              `{"url":}`,
+			expectedStatus:       http.StatusBadRequest,
+			expectedJSONResponse: createScrapeRequestResponse{},
 		},
 	}
 
@@ -83,7 +102,7 @@ func TestCreateScrapeRequester(t *testing.T) {
 			srv := &tt.service
 			handler := NewCreateItemHandler(srv)
 
-			req := httptest.NewRequest(http.MethodPost, "/scrape-requests", strings.NewReader(`{"url": "fake.com"}`))
+			req := httptest.NewRequest(http.MethodPost, "/scrape-requests", strings.NewReader(tt.payload))
 			req.Header.Set("Content-Type", "application/json")
 
 			rr := httptest.NewRecorder()

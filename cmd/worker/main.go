@@ -8,7 +8,7 @@ package main
 import (
 	"context"
 	"database/sql"
-	"errors"
+	goErrors "errors"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -18,6 +18,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"uniwish.com/internal/api/config"
+	"uniwish.com/internal/api/errors"
 	"uniwish.com/internal/api/repository"
 	"uniwish.com/internal/api/services"
 	"uniwish.com/internal/worker"
@@ -61,13 +62,15 @@ func main() {
 		return repository.NewPostgresScrapeRequestRepository(tx), tx, nil
 	}
 	go func() {
+		worker := worker.NewWorker(repoWithTxFactory, services.NewScraper)
+
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				err = worker.RunOnce(ctx, services.NewScraper, repoWithTxFactory)
-				if errors.Is(err, worker.ErrNoJob) {
+				err = worker.RunOnce(ctx)
+				if goErrors.Is(err, errors.ErrNoJob) {
 					time.Sleep(cfg.WorkerPollInterval) // TODO: backoff on repeated errors
 					continue
 				}

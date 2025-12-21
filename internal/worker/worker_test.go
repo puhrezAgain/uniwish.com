@@ -300,7 +300,8 @@ func TestRunOnce(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			repoFactory := NewFakeRepoFactory(tt.repo, tt.trans)
 			scraperFactory := NewFakeScraperFactory(tt.scraper, tt.factoryError)
-			RunOnce(context.Background(), scraperFactory.scaperFactoryFunc, repoFactory)
+			worker := Worker{repoFactory, scraperFactory.scaperFactoryFunc}
+			worker.RunOnce(context.Background())
 			for _, p := range tt.repoKeyToExpectedValue {
 				if getBoolField(tt.repo, p.Key) != p.Value {
 					t.Fatalf("repo.%s is not %t", p.Key, p.Value)
@@ -331,7 +332,9 @@ func TestProcessJob_FaultyCommit(t *testing.T) {
 	scraper := &FakeScraper{}
 	repoFactory := NewFakeRepoFactory(repo, trans)
 	scraperFactory := NewFakeScraperFactory(scraper, nil)
-	ProcessJob(context.Background(), NewFakeJob(), scraperFactory.scaperFactoryFunc, repoFactory)
+	worker := Worker{repoFactory, scraperFactory.scaperFactoryFunc}
+
+	worker.ProcessJob(context.Background(), NewFakeJob())
 	if !repo.MarkDoneCalled {
 		t.Fatal("markdone not called")
 	}
@@ -346,12 +349,15 @@ func TestProcessJob_FaultyCommit(t *testing.T) {
 func TestClaimJob_FaultyTx(t *testing.T) {
 	repo := &FakeRepo{}
 	trans := &FakeTransaction{}
-	_, err := ClaimJob(
-		context.Background(),
-		func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
-			return repo, trans, sql.ErrConnDone
-		},
-	)
+	repoFactoryWithError := func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
+		return repo, trans, sql.ErrConnDone
+	}
+	stubScraperFactory := func(_ string) (services.BaseScraper, error) {
+		return nil, nil
+	}
+	worker := Worker{repoFactoryWithError, stubScraperFactory}
+
+	_, err := worker.ClaimJob(context.Background())
 	if err == nil {
 		t.Fatal("error nil")
 	}
@@ -360,18 +366,13 @@ func TestClaimJob_FaultyTx(t *testing.T) {
 	}
 }
 
-func TestProcess_FaultyTx(t *testing.T) {
-	repo := &FakeRepo{}
-	trans := &FakeTransaction{}
+func TestProcessJob_FaultyTx(t *testing.T) {
 	scraperFactory := NewFakeScraperFactory(&FakeScraper{}, nil)
-
-	err := ProcessJob(
-		context.Background(), NewFakeJob(),
-		scraperFactory.scaperFactoryFunc,
-		func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
-			return repo, trans, sql.ErrConnDone
-		},
-	)
+	stubRepoFactory := func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
+		return nil, nil, sql.ErrTxDone
+	}
+	worker := Worker{stubRepoFactory, scraperFactory.scaperFactoryFunc}
+	err := worker.ProcessJob(context.Background(), NewFakeJob())
 	if err == nil {
 		t.Fatal("error nil")
 	}

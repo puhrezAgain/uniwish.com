@@ -8,6 +8,7 @@ package worker
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"uniwish.com/internal/api/repository"
 	"uniwish.com/internal/api/services"
@@ -15,11 +16,19 @@ import (
 
 var ErrNoJob = errors.New("No Job available")
 
-func ClaimJob(
-	ctx context.Context,
+type Worker struct {
+	repoWithTxFactory func() (repository.ScrapeRequestRepository, repository.Transaction, error)
+	scraperFactory    func(string) (services.BaseScraper, error)
+}
+
+func NewWorker(
 	repoWithTxFactory func() (repository.ScrapeRequestRepository, repository.Transaction, error),
-) (*repository.ScrapeRequest, error) {
-	repo, tx, err := repoWithTxFactory()
+	scraperFactory func(string) (services.BaseScraper, error),
+) *Worker {
+	return &Worker{repoWithTxFactory, scraperFactory}
+}
+func (w *Worker) ClaimJob(ctx context.Context) (*repository.ScrapeRequest, error) {
+	repo, tx, err := w.repoWithTxFactory()
 
 	if err != nil {
 		return nil, err
@@ -29,7 +38,7 @@ func ClaimJob(
 
 	if err != nil {
 		tx.Rollback()
-		return nil, err
+		return nil, fmt.Errorf("deqeue error %w", err)
 	}
 	if job == nil {
 		tx.Rollback()
@@ -37,54 +46,47 @@ func ClaimJob(
 	}
 	if err = tx.Commit(); err != nil {
 		tx.Rollback()
-		return nil, err
+		return nil, fmt.Errorf("commit error %w", err)
 	}
 	return job, nil
 }
 
-func ProcessJob(
-	ctx context.Context, job *repository.ScrapeRequest,
-	scraperFactory func(string) (services.BaseScraper, error),
-	repoWithTxFactory func() (repository.ScrapeRequestRepository, repository.Transaction, error),
-) error {
-	repo, tx, err := repoWithTxFactory()
+func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) error {
+	repo, tx, err := w.repoWithTxFactory()
 
 	if err != nil {
 		return err
 	}
-	scraper, err := scraperFactory(job.URL)
+	scraper, err := w.scraperFactory(job.URL)
 	if err != nil {
 		repo.MarkFailed(ctx, job.ID)
 		tx.Commit()
-		return err
+		return fmt.Errorf("scraper factory error %w", err)
 	}
 
 	_, err = scraper.Scrape(ctx, job.URL)
 	if err != nil {
 		repo.MarkFailed(ctx, job.ID)
 		tx.Commit()
-		return err
+		return fmt.Errorf("scrape error %w", err)
 	}
 
 	repo.MarkDone(ctx, job.ID)
 	if err = tx.Commit(); err != nil {
 		tx.Rollback()
-		return err
+		return fmt.Errorf("commit error %w", err)
 	}
 	return nil
 }
 
-func RunOnce(ctx context.Context,
-	scraperFactory func(string) (services.BaseScraper, error),
-	repoWithTxFactory func() (repository.ScrapeRequestRepository, repository.Transaction, error),
-) error {
-	job, err := ClaimJob(ctx, repoWithTxFactory)
+func (w *Worker) RunOnce(ctx context.Context) error {
+	job, err := w.ClaimJob(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("claim job error %w", err)
 	}
-	err = ProcessJob(ctx, job, scraperFactory, repoWithTxFactory)
+	err = w.ProcessJob(ctx, job)
 	if err != nil {
-		return err
+		return fmt.Errorf("process job error %w", err)
 	}
 	return nil
 }

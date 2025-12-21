@@ -16,6 +16,7 @@ import (
 func TestScrapeRequestRepo_Insert(t *testing.T) {
 	requireIntegration(t)
 	tx, err := testDB.BeginTx(context.Background(), nil)
+
 	if err != nil {
 		t.Fatalf("transaction failed %v", err)
 	}

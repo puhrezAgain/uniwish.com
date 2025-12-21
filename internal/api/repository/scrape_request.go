@@ -17,6 +17,11 @@ type DB interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
+type Transaction interface {
+	Rollback() error
+	Commit() error
+}
+
 type ScrapeRequest struct {
 	ID     uuid.UUID
 	Status string
@@ -33,7 +38,7 @@ type PostgresScrapeRequestRepository struct {
 	db DB
 }
 
-func NewPostgresScrapeRequestRepository(db DB) *PostgresScrapeRequestRepository {
+func NewPostgresScrapeRequestRepository(db DB) ScrapeRequestRepository {
 	return &PostgresScrapeRequestRepository{db: db}
 }
 
@@ -56,7 +61,10 @@ func (r *PostgresScrapeRequestRepository) Insert(ctx context.Context, url string
 }
 
 func (r *PostgresScrapeRequestRepository) Dequeue(ctx context.Context) (*ScrapeRequest, error) {
+	// To prevent race conditions between read and update, dequeue must be called with a transaction backed repo.
+
 	scrapeRequest := ScrapeRequest{}
+
 	err := r.db.QueryRowContext(
 		ctx,
 		`

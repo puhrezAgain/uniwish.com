@@ -3,8 +3,8 @@ package config
 import "time"
 
 type Config struct {
-	ENV                  string
-	PORT                 int
-	DBURL                string
-	WORKER_POLL_INTERVAL time.Duration
+	Env                string
+	Port               int
+	DBURL              string
+	WorkerPollInterval time.Duration
 }

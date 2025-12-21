@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -18,6 +19,8 @@ import (
 
 	"uniwish.com/internal/api/config"
 	"uniwish.com/internal/api/repository"
+	"uniwish.com/internal/api/services"
+	"uniwish.com/internal/worker"
 )
 
 func main() {
@@ -49,40 +52,33 @@ func main() {
 		logger.Error("db ping failed", "err", err)
 		os.Exit(1)
 	}
+	repoWithTxFactory := func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
+		tx, err := db.BeginTx(ctx, nil)
+		if err != nil {
+			return nil, nil, err
+		}
 
-	errCh := make(chan error, 1)
+		return repository.NewPostgresScrapeRequestRepository(tx), tx, nil
+	}
 	go func() {
-		repo := repository.NewPostgresScrapeRequestRepository(db)
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				job, err := repo.Dequeue(ctx)
+				err = worker.RunOnce(ctx, services.NewScraper, repoWithTxFactory)
+				if errors.Is(err, worker.ErrNoJob) {
+					time.Sleep(cfg.WorkerPollInterval) // TODO: backoff on repeated errors
+					continue
+				}
 				if err != nil {
-					logger.Error(
-						"worker faces job error, making failed",
-						"error", err,
-						"id", job.ID)
-					repo.MarkFailed(ctx, job.ID)
-					continue
+					logger.Error("worker error", "error", err)
+					time.Sleep(cfg.WorkerPollInterval) // TODO: backoff on repeated errors
 				}
-				if job == nil {
-					time.Sleep(cfg.WORKER_POLL_INTERVAL)
-					continue
-				}
-				// TODO: scraper = scraperregistry.get(job.url.host)
-				// scraper.scrape(job.url)
-				// repo.MakeDone(ctx, job.ID)
-				continue
 			}
 		}
 	}()
 
-	select {
-	case <-ctx.Done():
-		logger.Info("shutdown signal received")
-	case err := <-errCh:
-		logger.Error("worker error", "err", err)
-	}
+	<-ctx.Done()
+	logger.Info("shutdown signal received")
 }

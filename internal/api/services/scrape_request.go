@@ -7,7 +7,6 @@ package services
 
 import (
 	"context"
-	"net/url"
 
 	"github.com/google/uuid"
 	"uniwish.com/internal/api/errors"
@@ -26,14 +25,10 @@ func (s *ScrapeRequestService) Request(ctx context.Context, rawUrl string) (uuid
 	if rawUrl == "" {
 		return uuid.Nil, errors.ErrInputInvalid
 	}
+	_, err := NewScraper(rawUrl)
 
-	parsed, err := url.Parse(rawUrl)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return uuid.Nil, errors.ErrInputInvalid
-	}
-
-	if parsed.Host != "store.com" { // TODO: when scrapers defined, change this to ensure host maps to a scraper
-		return uuid.Nil, errors.ErrStoreUnsupported
+	if err != nil {
+		return uuid.Nil, err
 	}
 
 	return s.repo.Insert(ctx, rawUrl)

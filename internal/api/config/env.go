@@ -10,7 +10,7 @@ import (
 
 func Load() (*Config, error) {
 	cfg := &Config{}
-	cfg.ENV = getenv("APP_ENV", "dev")
+	cfg.Env = getenv("APP_ENV", "dev")
 
 	cfg.DBURL = getenv("DATABASE_URL", "")
 	if cfg.DBURL == "" {
@@ -22,14 +22,14 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	cfg.PORT = port
+	cfg.Port = port
 
 	worker_interval, err := getenvInt("WORKER_POLL_INTERVAL", 1)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg.WORKER_POLL_INTERVAL = time.Duration(worker_interval) * time.Second
+	cfg.WorkerPollInterval = time.Duration(worker_interval) * time.Second
 	return cfg, nil
 }
 

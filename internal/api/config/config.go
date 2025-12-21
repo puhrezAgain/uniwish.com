@@ -1,7 +1,10 @@
 package config
 
+import "time"
+
 type Config struct {
-	Env   string
-	Port  int
-	DBURL string
+	ENV                  string
+	PORT                 int
+	DBURL                string
+	WORKER_POLL_INTERVAL time.Duration
 }

@@ -38,7 +38,7 @@ func NewServer(cfg *config.Config, logger *slog.Logger, db *sql.DB) *Server {
 	handler := middleware.Logging(logger)(mux)
 
 	srv := &http.Server{
-		Addr:    ":" + strconv.Itoa(cfg.Port),
+		Addr:    ":" + strconv.Itoa(cfg.PORT),
 		Handler: handler,
 	}
 

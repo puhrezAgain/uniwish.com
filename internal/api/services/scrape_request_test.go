@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	apiErrors "uniwish.com/internal/api/errors"
+	"uniwish.com/internal/api/repository"
 )
 
 var fakeId uuid.UUID = uuid.New()
@@ -22,6 +23,17 @@ type FakeRepo struct {
 
 func (r *FakeRepo) Insert(_ context.Context, _ string) (uuid.UUID, error) {
 	return fakeId, nil
+}
+func (r *FakeRepo) Dequeue(_ context.Context) (*repository.ScrapeRequest, error) {
+	return nil, nil
+}
+
+func (r *FakeRepo) MarkDone(_ context.Context, _ uuid.UUID) error {
+	return nil
+}
+
+func (r *FakeRepo) MarkFailed(_ context.Context, _ uuid.UUID) error {
+	return nil
 }
 
 func TestScrapeRequestService(t *testing.T) {

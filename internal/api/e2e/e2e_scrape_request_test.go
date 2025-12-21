@@ -1,3 +1,8 @@
+/*
+uniwish.com/interal/e2e/e2e_scrape_request_test
+
+End to end testing for our scrape request endpoint path
+*/
 package e2e
 
 import (

@@ -14,5 +14,6 @@ func NewHealthService() *HealthService {
 }
 
 func (s *HealthService) Check(ctx context.Context) error {
+	// stub function used to make sure our system is at least up
 	return nil
 }

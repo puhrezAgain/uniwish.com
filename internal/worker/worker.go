@@ -17,6 +17,8 @@ import (
 var ErrNoJob = errors.New("No Job available")
 
 type Worker struct {
+	// in order to make our worker easily testible
+	// we delegate repo and scraper configuration to instantiators
 	repoWithTxFactory func() (repository.ScrapeRequestRepository, repository.Transaction, error)
 	scraperFactory    func(string) (services.BaseScraper, error)
 }
@@ -27,20 +29,38 @@ func NewWorker(
 ) *Worker {
 	return &Worker{repoWithTxFactory, scraperFactory}
 }
+
+func (w *Worker) RunOnce(ctx context.Context) error {
+	job, err := w.ClaimJob(ctx)
+	if err != nil {
+		return fmt.Errorf("claim job error %w", err)
+	}
+
+	err = w.ProcessJob(ctx, job)
+	if err != nil {
+		return fmt.Errorf("process job error %w", err)
+	}
+	return nil
+}
+
 func (w *Worker) ClaimJob(ctx context.Context) (*repository.ScrapeRequest, error) {
+	// create our repo and give us the transation it will use
 	repo, tx, err := w.repoWithTxFactory()
 
 	if err != nil {
 		return nil, err
 	}
 
+	// grab a job
 	job, err := repo.Dequeue(ctx)
 
 	if err != nil {
 		tx.Rollback()
 		return nil, fmt.Errorf("deqeue error %w", err)
 	}
+
 	if job == nil {
+		// no job no problem, but lets indicate that just in case there is problem
 		tx.Rollback()
 		return nil, ErrNoJob
 	}
@@ -59,6 +79,7 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 	}
 	scraper, err := w.scraperFactory(job.URL)
 	if err != nil {
+		// handle unsupported urls
 		repo.MarkFailed(ctx, job.ID)
 		tx.Commit()
 		return fmt.Errorf("scraper factory error %w", err)
@@ -75,18 +96,6 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 	if err = tx.Commit(); err != nil {
 		tx.Rollback()
 		return fmt.Errorf("commit error %w", err)
-	}
-	return nil
-}
-
-func (w *Worker) RunOnce(ctx context.Context) error {
-	job, err := w.ClaimJob(ctx)
-	if err != nil {
-		return fmt.Errorf("claim job error %w", err)
-	}
-	err = w.ProcessJob(ctx, job)
-	if err != nil {
-		return fmt.Errorf("process job error %w", err)
 	}
 	return nil
 }

@@ -1,3 +1,8 @@
+/*
+uniwish.com/interal/config/load
+
+module dedicated to logic around loading config
+*/
 package config
 
 import (
@@ -14,7 +19,7 @@ func Load() (*Config, error) {
 
 	cfg.DBURL = getenv("DATABASE_URL", "")
 	if cfg.DBURL == "" {
-		return nil, errors.New("DATABASE_URL required in environment")
+		return nil, errors.New("DATABASE_URL required")
 	}
 
 	port, err := getenvInt("APP_PORT", 8080)

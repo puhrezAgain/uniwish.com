@@ -22,6 +22,7 @@ func NewScrapeRequestService(r repository.ScrapeRequestRepository) *ScrapeReques
 }
 
 func (s *ScrapeRequestService) Request(ctx context.Context, rawUrl string) (uuid.UUID, error) {
+	// validates the rawUrl and if ok, inserts a scrape request to the db
 	if rawUrl == "" {
 		return uuid.Nil, errors.ErrInputInvalid
 	}

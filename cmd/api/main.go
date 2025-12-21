@@ -17,6 +17,11 @@ import (
 )
 
 func main() {
+	/*
+		sets up logger, config, database, and server
+		before starting the server in a goroutine serving to config.Port
+		gracefully shutdowns according to context
+	*/
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg, err := config.Load()
 

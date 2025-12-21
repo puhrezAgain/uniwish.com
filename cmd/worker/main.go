@@ -25,6 +25,11 @@ import (
 )
 
 func main() {
+	/*
+		sets up logger, config, and database
+		before creating the worker which runs in a loop in a goroutine
+		gracefully shutdowns according to context
+	*/
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	cfg, err := config.Load()
 
@@ -53,6 +58,10 @@ func main() {
 		logger.Error("db ping failed", "err", err)
 		os.Exit(1)
 	}
+
+	// our worker require us to dynamically create our repo
+	// in order to simplfy testability
+	// we use it here to ensure all work goes into transactions
 	repoWithTxFactory := func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {

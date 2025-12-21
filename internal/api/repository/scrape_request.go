@@ -13,11 +13,13 @@ import (
 )
 
 type DB interface {
+	// allows us to monkeypatch DB connection
 	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
 }
 
 type Transaction interface {
+	// allows us to monkeypatch transactions
 	Rollback() error
 	Commit() error
 }
@@ -27,6 +29,7 @@ type ScrapeRequest struct {
 	Status string
 	URL    string
 }
+
 type ScrapeRequestRepository interface {
 	Insert(ctx context.Context, url string) (uuid.UUID, error)
 	Dequeue(ctx context.Context) (*ScrapeRequest, error)

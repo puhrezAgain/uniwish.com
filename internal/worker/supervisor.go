@@ -55,7 +55,7 @@ func (ws *WorkerSupervisor) Run(ctx context.Context) {
 					return
 				}
 			}
-			time.Sleep(ws.PollInterval)
+			ws.Sleep(ws.PollInterval)
 		}
 	}
 

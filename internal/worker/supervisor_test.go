@@ -89,8 +89,9 @@ func TestWorkerSupervisor(t *testing.T) {
 		},
 	}
 
-	stopped := false
 	for _, tt := range tests {
+		tt := tt
+		stopped := false
 		ws := WorkerSupervisor{
 			Worker:           &tt.worker,
 			PollInterval:     0,

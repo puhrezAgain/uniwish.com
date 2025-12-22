@@ -73,7 +73,7 @@ type FakeScraper struct {
 	ScrapeCalled bool
 }
 
-func (s *FakeScraper) Scrape(ctx context.Context, url string) (*services.PlaceholderProduct, error) {
+func (s *FakeScraper) Scrape(ctx context.Context, url string) (*services.ProductSnapshot, error) {
 	s.ScrapeCalled = true
 	return nil, nil
 }
@@ -131,7 +131,7 @@ type FakeFaultyScraper struct {
 	ScrapeCalled bool
 }
 
-func (s *FakeFaultyScraper) Scrape(ctx context.Context, url string) (*services.PlaceholderProduct, error) {
+func (s *FakeFaultyScraper) Scrape(ctx context.Context, url string) (*services.ProductSnapshot, error) {
 	s.ScrapeCalled = true
 	return nil, errors.ErrScrapeFailed
 }

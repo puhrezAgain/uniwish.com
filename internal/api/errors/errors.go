@@ -10,5 +10,4 @@ import "errors"
 var ErrUnavailable = errors.New("service unavailable")
 var ErrStoreUnsupported = errors.New("store unsupported")
 var ErrInputInvalid = errors.New("input invalid")
-var ErrIdle = errors.New("No Job available")
 var ErrScrapeFailed = errors.New("Scrape failed")

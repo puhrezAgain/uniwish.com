@@ -8,18 +8,15 @@ package main
 import (
 	"context"
 	"database/sql"
-	goErrors "errors"
 	"log/slog"
 	"os"
 	"os/signal"
-	"sync/atomic"
 	"syscall"
 	"time"
 
 	_ "github.com/lib/pq"
 
 	"uniwish.com/internal/api/config"
-	"uniwish.com/internal/api/errors"
 	"uniwish.com/internal/api/repository"
 	"uniwish.com/internal/api/services"
 	"uniwish.com/internal/worker"
@@ -63,6 +60,7 @@ func main() {
 	// our worker require us to dynamically create our repo
 	// in order to simplfy testability
 	// we use it here to ensure all work goes into transactions
+	// TODO: consider Repository/Reader dynamic for simplicity
 	repoWithTxFactory := func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
@@ -71,41 +69,16 @@ func main() {
 
 		return repository.NewPostgresScrapeRequestRepository(tx), tx, nil
 	}
-	go func() {
-		scrapeWorker := worker.NewWorker(repoWithTxFactory, services.NewScraper)
-		var failures atomic.Int32
+	workerSupervisor := worker.WorkerSupervisor{
+		Worker:           worker.NewWorker(repoWithTxFactory, services.NewScraper),
+		PollInterval:     cfg.WorkerPollInterval,
+		FailureTolerance: cfg.WorkerFailureTolerance,
+		Sleep:            time.Sleep,
+		OnFatal:          stop,
+		Logger:           logger,
+	}
 
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-				err = scrapeWorker.RunOnce(ctx)
-				var je worker.JobError
-				switch {
-				case err == nil:
-					failures.Store(0)
-				case goErrors.Is(err, errors.ErrIdle):
-					// No work is not a failure nor a success
-					// so lets not reset the failure counter, but also not increment it
-				case goErrors.As(err, &je):
-					// handling dead letter is proper health
-					// resetting the failure counter because processing problems could be input issues
-					logger.Error("job error", "error", err)
-					failures.Store(0)
-				default:
-					logger.Error("worker error", "error", err)
-
-					if failures.Add(1) >= int32(cfg.WorkerFailureTolerance) {
-						logger.Error("worker tolerance exceeded", "failures", failures.Load())
-						stop()
-						return
-					}
-				}
-				time.Sleep(cfg.WorkerPollInterval)
-			}
-		}
-	}()
+	go workerSupervisor.Run(ctx)
 
 	<-ctx.Done()
 	logger.Info("shutdown signal received")

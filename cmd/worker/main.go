@@ -61,13 +61,13 @@ func main() {
 	// in order to simplfy testability
 	// we use it here to ensure all work goes into transactions
 	// TODO: consider Repository/Reader dynamic for simplicity
-	repoWithTxFactory := func() (repository.ScrapeRequestRepository, repository.Transaction, error) {
+	repoWithTxFactory := func() (worker.WorkerRepository, repository.Transaction, error) {
 		tx, err := db.BeginTx(ctx, nil)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		return repository.NewPostgresScrapeRequestRepository(tx), tx, nil
+		return worker.NewWorkerRepo(repository.NewPostgresScrapeRequestRepository(tx), repository.NewProductRepository(tx)), tx, nil
 	}
 	workerSupervisor := worker.WorkerSupervisor{
 		Worker:           worker.NewWorker(repoWithTxFactory, services.NewScraper),

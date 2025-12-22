@@ -10,14 +10,11 @@ import (
 	"net/url"
 
 	"uniwish.com/internal/api/errors"
+	"uniwish.com/internal/domain"
 )
 
-type PlaceholderProduct struct {
-	// TODO: placeholder struct
-	URL string
-}
 type BaseScraper interface {
-	Scrape(ctx context.Context, url string) (*PlaceholderProduct, error)
+	Scrape(ctx context.Context, url string) (*domain.ProductSnapshot, error)
 }
 
 type Scraper struct{}
@@ -35,6 +32,6 @@ func NewScraper(URL string) (BaseScraper, error) {
 	return &Scraper{}, nil
 }
 
-func (s *Scraper) Scrape(ctx context.Context, url string) (*PlaceholderProduct, error) {
+func (s *Scraper) Scrape(ctx context.Context, url string) (*domain.ProductSnapshot, error) {
 	return nil, nil
 }

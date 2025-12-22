@@ -38,7 +38,7 @@ func (ws *WorkerSupervisor) Run(ctx context.Context) {
 			switch {
 			case err == nil:
 				failures.Store(0)
-			case errors.Is(err, ErrIdle):
+			case errors.Is(err, ErrNoWork):
 				// No work is not a failure nor a success
 				// so lets not reset the failure counter, but also not increment it
 			case errors.As(err, &je):

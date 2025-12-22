@@ -20,6 +20,7 @@ type DB interface {
 
 type Transaction interface {
 	// allows us to monkeypatch transactions
+
 	Rollback() error
 	Commit() error
 }

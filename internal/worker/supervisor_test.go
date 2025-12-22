@@ -69,7 +69,7 @@ func TestWorkerSupervisor(t *testing.T) {
 				Results: []error{
 					sql.ErrConnDone,
 					sql.ErrConnDone,
-					ErrIdle,
+					ErrNoWork,
 					sql.ErrConnDone,
 				},
 			},

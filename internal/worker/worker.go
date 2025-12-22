@@ -15,7 +15,21 @@ import (
 	"uniwish.com/internal/api/services"
 )
 
-var ErrIdle = errors.New("no Job available")
+var ErrNoWork = errors.New("no job available")
+
+type WorkerRepository interface {
+	repository.ScrapeRequestRepository
+	repository.ProductRepositoryBase
+}
+
+type WorkerRepo struct {
+	repository.ScrapeRequestRepository
+	repository.ProductRepository
+}
+
+func NewWorkerRepo(scrape repository.ScrapeRequestRepository, product repository.ProductRepository) WorkerRepository {
+	return &WorkerRepo{scrape, product}
+}
 
 type JobError struct {
 	// used to represent errors that shouldn't be considered worker critical
@@ -35,12 +49,12 @@ func (e JobError) Unwrap() error {
 type Worker struct {
 	// in order to make our worker easily testible
 	// we delegate repo and scraper configuration to instantiators
-	repoWithTxFactory func() (repository.ScrapeRequestRepository, repository.Transaction, error)
+	repoWithTxFactory func() (WorkerRepository, repository.Transaction, error)
 	scraperFactory    func(string) (services.BaseScraper, error)
 }
 
 func NewWorker(
-	repoWithTxFactory func() (repository.ScrapeRequestRepository, repository.Transaction, error),
+	repoWithTxFactory func() (WorkerRepository, repository.Transaction, error),
 	scraperFactory func(string) (services.BaseScraper, error),
 ) *Worker {
 	return &Worker{repoWithTxFactory, scraperFactory}
@@ -76,13 +90,15 @@ func (w *Worker) ClaimJob(ctx context.Context) (*repository.ScrapeRequest, error
 	}
 
 	if job == nil {
-		// no job no problem, but lets indicate that just in case there is problem
+		// though technically no need for rollback as nothing was updated
+		// rollbacking just in case Dequeue changes before this does
 		tx.Rollback()
-		return nil, ErrIdle
+		return nil, ErrNoWork
 	}
+
 	if err = tx.Commit(); err != nil {
 		tx.Rollback()
-		return nil, fmt.Errorf("commit error %w", err)
+		return nil, fmt.Errorf("dequeue commit error %w", err)
 	}
 	return job, nil
 }
@@ -101,7 +117,7 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 		return JobError{JobID: job.ID, Err: err}
 	}
 
-	_, err = scraper.Scrape(ctx, job.URL)
+	product, err := scraper.Scrape(ctx, job.URL)
 	if err != nil {
 		// dead letter failing scrapes but escalate for logging
 		repo.MarkFailed(ctx, job.ID)
@@ -109,10 +125,22 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 		return JobError{JobID: job.ID, Err: err}
 	}
 
+	product_id, err := repo.UpsertProduct(ctx, *product)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("process job error %w", err)
+	}
+
+	err = repo.InsertPrice(ctx, product_id, product.Price, product.Currency)
+	if err != nil {
+		tx.Rollback()
+		return fmt.Errorf("process job error %w", err)
+	}
+
 	repo.MarkDone(ctx, job.ID)
 	if err = tx.Commit(); err != nil {
 		tx.Rollback()
-		return fmt.Errorf("commit error %w", err)
+		return fmt.Errorf("process commit error %w", err)
 	}
 	return nil
 }

@@ -12,6 +12,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -71,22 +72,37 @@ func main() {
 		return repository.NewPostgresScrapeRequestRepository(tx), tx, nil
 	}
 	go func() {
-		worker := worker.NewWorker(repoWithTxFactory, services.NewScraper)
+		scrapeWorker := worker.NewWorker(repoWithTxFactory, services.NewScraper)
+		var failures atomic.Int32
 
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			default:
-				err = worker.RunOnce(ctx)
-				if goErrors.Is(err, errors.ErrNoJob) {
-					time.Sleep(cfg.WorkerPollInterval) // TODO: backoff on repeated errors
-					continue
-				}
-				if err != nil {
+				err = scrapeWorker.RunOnce(ctx)
+				var je worker.JobError
+				switch {
+				case err == nil:
+					failures.Store(0)
+				case goErrors.Is(err, errors.ErrIdle):
+					// No work is not a failure nor a success
+					// so lets not reset the failure counter, but also not increment it
+				case goErrors.As(err, &je):
+					// handling dead letter is proper health
+					// resetting the failure counter because processing problems could be input issues
+					logger.Error("job error", "error", err)
+					failures.Store(0)
+				default:
 					logger.Error("worker error", "error", err)
-					time.Sleep(cfg.WorkerPollInterval) // TODO: backoff on repeated errors
+
+					if failures.Add(1) >= int32(cfg.WorkerFailureTolerance) {
+						logger.Error("worker tolerance exceeded", "failures", failures.Load())
+						stop()
+						return
+					}
 				}
+				time.Sleep(cfg.WorkerPollInterval)
 			}
 		}
 	}()

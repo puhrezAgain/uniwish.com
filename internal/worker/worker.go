@@ -10,11 +10,27 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"uniwish.com/internal/api/repository"
 	"uniwish.com/internal/api/services"
 )
 
-var ErrNoJob = errors.New("No Job available")
+var ErrIdle = errors.New("no Job available")
+
+type JobError struct {
+	// used to represent errors that shouldn't be considered worker critical
+	// It indicates the worker is healthy and should continue running.
+	JobID uuid.UUID
+	Err   error
+}
+
+func (e JobError) Error() string {
+	return fmt.Sprintf("job %s: %v", e.JobID, e.Err)
+}
+
+func (e JobError) Unwrap() error {
+	return e.Err
+}
 
 type Worker struct {
 	// in order to make our worker easily testible
@@ -62,7 +78,7 @@ func (w *Worker) ClaimJob(ctx context.Context) (*repository.ScrapeRequest, error
 	if job == nil {
 		// no job no problem, but lets indicate that just in case there is problem
 		tx.Rollback()
-		return nil, ErrNoJob
+		return nil, ErrIdle
 	}
 	if err = tx.Commit(); err != nil {
 		tx.Rollback()
@@ -79,17 +95,18 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 	}
 	scraper, err := w.scraperFactory(job.URL)
 	if err != nil {
-		// handle unsupported urls
+		// dead letter and surpress unsupported urls
 		repo.MarkFailed(ctx, job.ID)
 		tx.Commit()
-		return fmt.Errorf("scraper factory error %w", err)
+		return JobError{JobID: job.ID, Err: err}
 	}
 
 	_, err = scraper.Scrape(ctx, job.URL)
 	if err != nil {
+		// dead letter failing scrapes but escalate for logging
 		repo.MarkFailed(ctx, job.ID)
 		tx.Commit()
-		return fmt.Errorf("scrape error %w", err)
+		return JobError{JobID: job.ID, Err: err}
 	}
 
 	repo.MarkDone(ctx, job.ID)

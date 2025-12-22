@@ -35,6 +35,13 @@ func Load() (*Config, error) {
 	}
 
 	cfg.WorkerPollInterval = time.Duration(worker_interval) * time.Second
+
+	worker_tolerance, err := getenvInt("WORKER_FAILURE_TOLERANCE", 10)
+	if err != nil {
+		return nil, err
+	}
+
+	cfg.WorkerFailureTolerance = worker_tolerance
 	return cfg, nil
 }
 

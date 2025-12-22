@@ -8,6 +8,7 @@ package worker
 import (
 	"context"
 	"database/sql"
+	goErrors "errors"
 	"reflect"
 	"testing"
 
@@ -157,6 +158,7 @@ func TestRunOnce(t *testing.T) {
 		trans                            repository.Transaction
 		scraper                          services.BaseScraper
 		factoryError                     error
+		rv                               error
 		repoKeyToExpectedValue           []StringBools
 		transKeyToExpectedValue          []StringBools
 		scraperFactoryKeyToExpectedValue []StringBools
@@ -168,6 +170,7 @@ func TestRunOnce(t *testing.T) {
 			trans:        &FakeTransaction{},
 			scraper:      &FakeScraper{},
 			factoryError: nil,
+			rv:           nil,
 			repoKeyToExpectedValue: []StringBools{
 				{"DequeueCalled", true},
 				{"MarkDoneCalled", true},
@@ -190,6 +193,7 @@ func TestRunOnce(t *testing.T) {
 			trans:        &FakeTransaction{},
 			scraper:      &FakeScraper{},
 			factoryError: nil,
+			rv:           ErrIdle,
 			repoKeyToExpectedValue: []StringBools{
 				{"DequeueCalled", true},
 				{"MarkDoneCalled", false},
@@ -212,6 +216,7 @@ func TestRunOnce(t *testing.T) {
 			trans:        &FakeTransaction{},
 			scraper:      &FakeScraper{},
 			factoryError: errors.ErrStoreUnsupported,
+			rv:           errors.ErrStoreUnsupported,
 			repoKeyToExpectedValue: []StringBools{
 				{"DequeueCalled", true},
 				{"MarkDoneCalled", false},
@@ -234,6 +239,7 @@ func TestRunOnce(t *testing.T) {
 			trans:        &FakeTransaction{},
 			scraper:      &FakeScraper{},
 			factoryError: nil,
+			rv:           sql.ErrConnDone,
 			repoKeyToExpectedValue: []StringBools{
 				{"DequeueCalled", true},
 				{"MarkDoneCalled", false},
@@ -256,6 +262,7 @@ func TestRunOnce(t *testing.T) {
 			trans:        &FaultyCommitTransaction{},
 			scraper:      &FakeScraper{},
 			factoryError: nil,
+			rv:           sql.ErrTxDone,
 			repoKeyToExpectedValue: []StringBools{
 				{"DequeueCalled", true},
 				{"MarkDoneCalled", false},
@@ -278,6 +285,7 @@ func TestRunOnce(t *testing.T) {
 			trans:        &FakeTransaction{},
 			scraper:      &FakeFaultyScraper{},
 			factoryError: nil,
+			rv:           errors.ErrScrapeFailed,
 			repoKeyToExpectedValue: []StringBools{
 				{"DequeueCalled", true},
 				{"MarkDoneCalled", false},
@@ -301,7 +309,10 @@ func TestRunOnce(t *testing.T) {
 			repoFactory := NewFakeRepoFactory(tt.repo, tt.trans)
 			scraperFactory := NewFakeScraperFactory(tt.scraper, tt.factoryError)
 			worker := Worker{repoFactory, scraperFactory.scaperFactoryFunc}
-			worker.RunOnce(context.Background())
+			rv := worker.RunOnce(context.Background())
+			if !goErrors.Is(rv, tt.rv) {
+				t.Fatalf("expected rv %v received %v", tt.rv, rv)
+			}
 			for _, p := range tt.repoKeyToExpectedValue {
 				if getBoolField(tt.repo, p.Key) != p.Value {
 					t.Fatalf("repo.%s is not %t", p.Key, p.Value)

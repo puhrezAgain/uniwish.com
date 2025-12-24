@@ -36,11 +36,6 @@ func NewFakeProduct() *domain.ProductSnapshot {
 	}
 }
 
-type FakeRepo interface {
-	WorkerRepository
-	Calls() []string
-}
-
 type CallRecorder struct {
 	calls []string
 }
@@ -53,34 +48,69 @@ func (s *CallRecorder) record(call string) {
 	s.calls = append(s.calls, call)
 }
 
+type FakeRepo interface {
+	WorkerRepo
+	Session() FakeWorkerSession
+}
+
 type DefaultFakeRepo struct {
-	WorkerRepository
+	DefaultWorkerRepo
+	session FakeWorkerSession
+}
+
+func (wr *DefaultFakeRepo) Session() FakeWorkerSession {
+	return wr.session
+}
+
+func (wr *DefaultFakeRepo) BeginSession(ctx context.Context) (WorkerSession, error) {
+	if wr.session == nil {
+		wr.session = &DefaultFakeWorkerSession{}
+	}
+	return wr.session, nil
+}
+
+type FakeWorkerSession interface {
+	repository.ScrapeRequestRepository
+	repository.ProductRepository
+	repository.Transaction
+	Calls() []string
+}
+type DefaultFakeWorkerSession struct {
 	CallRecorder
 }
 
-func (r *DefaultFakeRepo) Insert(ctx context.Context, url string) (uuid.UUID, error) {
+func (r *DefaultFakeWorkerSession) Insert(ctx context.Context, url string) (uuid.UUID, error) {
 	r.record("Insert")
 	return uuid.New(), nil
 }
-func (r *DefaultFakeRepo) Dequeue(ctx context.Context) (*repository.ScrapeRequest, error) {
+func (r *DefaultFakeWorkerSession) Dequeue(ctx context.Context) (*repository.ScrapeRequest, error) {
 	r.record("Dequeue")
 	return NewFakeJob(), nil
 }
-func (r *DefaultFakeRepo) MarkDone(ctx context.Context, id uuid.UUID) error {
+func (r *DefaultFakeWorkerSession) MarkDone(ctx context.Context, id uuid.UUID) error {
 	r.record("MarkDone")
 	return nil
 }
-func (r *DefaultFakeRepo) MarkFailed(ctx context.Context, id uuid.UUID) error {
+func (r *DefaultFakeWorkerSession) MarkFailed(ctx context.Context, id uuid.UUID) error {
 	r.record("MarkFailed")
 	return nil
 }
 
-func (r *DefaultFakeRepo) UpsertProduct(context.Context, domain.ProductSnapshot) (uuid.UUID, error) {
+func (r *DefaultFakeWorkerSession) UpsertProduct(context.Context, domain.ProductSnapshot) (uuid.UUID, error) {
 	r.record("UpsertProduct")
 	return uuid.Nil, nil
 }
-func (r *DefaultFakeRepo) InsertPrice(context.Context, uuid.UUID, float32, string) error {
+func (r *DefaultFakeWorkerSession) InsertPrice(context.Context, uuid.UUID, float32, string) error {
 	r.record("InsertPrice")
+	return nil
+}
+
+func (t *DefaultFakeWorkerSession) Rollback() error {
+	t.record("Rollback")
+	return nil
+}
+func (t *DefaultFakeWorkerSession) Commit() error {
+	t.record("Commit")
 	return nil
 }
 
@@ -88,8 +118,19 @@ type FakeNoJobsRepo struct {
 	DefaultFakeRepo
 }
 
-func (f *FakeNoJobsRepo) Dequeue(ctx context.Context) (*repository.ScrapeRequest, error) {
-	f.DefaultFakeRepo.Dequeue(ctx)
+func (wr *FakeNoJobsRepo) BeginSession(ctx context.Context) (WorkerSession, error) {
+	if wr.session == nil {
+		wr.session = &FakeNoJobsRepoSession{}
+	}
+	return wr.session, nil
+}
+
+type FakeNoJobsRepoSession struct {
+	DefaultFakeWorkerSession
+}
+
+func (f *FakeNoJobsRepoSession) Dequeue(ctx context.Context) (*repository.ScrapeRequest, error) {
+	f.DefaultFakeWorkerSession.Dequeue(ctx)
 	return nil, nil
 }
 
@@ -97,41 +138,48 @@ type FakeDBErrorRepo struct {
 	DefaultFakeRepo
 }
 
-func (f *FakeDBErrorRepo) Dequeue(ctx context.Context) (*repository.ScrapeRequest, error) {
-	f.DefaultFakeRepo.Dequeue(ctx)
+func (wr *FakeDBErrorRepo) BeginSession(ctx context.Context) (WorkerSession, error) {
+	if wr.session == nil {
+		wr.session = &FakeDBErrorRepoSession{}
+	}
+	return wr.session, nil
+}
+
+type FakeDBErrorRepoSession struct {
+	DefaultFakeWorkerSession
+}
+
+func (f *FakeDBErrorRepoSession) Dequeue(ctx context.Context) (*repository.ScrapeRequest, error) {
+	f.DefaultFakeWorkerSession.Dequeue(ctx)
 	return nil, sql.ErrConnDone
 }
 
-type FakeTransaction interface {
-	repository.Transaction
-	Calls() []string
-}
-type DefaultFakeTransaction struct {
-	CallRecorder
+type FaultyTransactionRepo struct {
+	DefaultFakeRepo
 }
 
-func (t *DefaultFakeTransaction) Rollback() error {
-	t.record("Rollback")
-	return nil
-}
-func (t *DefaultFakeTransaction) Commit() error {
-	t.record("Commit")
-	return nil
+func (f *FaultyTransactionRepo) BeginSession(ctx context.Context) (WorkerSession, error) {
+	return nil, sql.ErrConnDone
 }
 
-type FaultyCommitTransaction struct {
-	DefaultFakeTransaction
+type FaultyCommitRepo struct {
+	DefaultFakeRepo
 }
 
-func (t *FaultyCommitTransaction) Commit() error {
-	t.DefaultFakeTransaction.Commit()
-	return sql.ErrTxDone
-}
-
-func NewFakeRepoFactory(repo WorkerRepository, trans repository.Transaction) func() (WorkerRepository, repository.Transaction, error) {
-	return func() (WorkerRepository, repository.Transaction, error) {
-		return repo, trans, nil
+func (wr *FaultyCommitRepo) BeginSession(ctx context.Context) (WorkerSession, error) {
+	if wr.session == nil {
+		wr.session = &FaultyCommitRepoSession{}
 	}
+	return wr.session, nil
+}
+
+type FaultyCommitRepoSession struct {
+	DefaultFakeWorkerSession
+}
+
+func (t *FaultyCommitRepoSession) Commit() error {
+	t.DefaultFakeWorkerSession.Commit()
+	return sql.ErrTxDone
 }
 
 type FakeScraper interface {

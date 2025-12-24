@@ -13,20 +13,20 @@ import (
 	"uniwish.com/internal/domain"
 )
 
-type ProductRepositoryBase interface {
+type ProductRepository interface {
 	UpsertProduct(context.Context, domain.ProductSnapshot) (uuid.UUID, error)
 	InsertPrice(context.Context, uuid.UUID, float32, string) error
 }
 
-type ProductRepository struct {
+type DefaultProductRepository struct {
 	db DB
 }
 
 func NewProductRepository(db DB) ProductRepository {
-	return ProductRepository{db}
+	return &DefaultProductRepository{db: db}
 }
 
-func (pr *ProductRepository) UpsertProduct(ctx context.Context, product domain.ProductSnapshot) (uuid.UUID, error) {
+func (pr *DefaultProductRepository) UpsertProduct(ctx context.Context, product domain.ProductSnapshot) (uuid.UUID, error) {
 	_, err := pr.db.ExecContext(ctx,
 		`
 	INSERT INTO products
@@ -44,7 +44,7 @@ func (pr *ProductRepository) UpsertProduct(ctx context.Context, product domain.P
 	}
 	return product.ID, nil
 }
-func (pr *ProductRepository) InsertPrice(ctx context.Context, productID uuid.UUID, price float32, currency string) error {
+func (pr *DefaultProductRepository) InsertPrice(ctx context.Context, productID uuid.UUID, price float32, currency string) error {
 	_, err := pr.db.ExecContext(ctx,
 		`
 	INSERT INTO prices (id, product_id, price, currency, scraped_at)

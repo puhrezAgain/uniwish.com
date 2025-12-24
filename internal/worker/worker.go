@@ -7,57 +7,22 @@ package worker
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
-	"github.com/google/uuid"
 	"uniwish.com/internal/api/repository"
 	"uniwish.com/internal/api/services"
 )
 
-var ErrNoWork = errors.New("no job available")
-
-type WorkerRepository interface {
-	repository.ScrapeRequestRepository
-	repository.ProductRepositoryBase
-}
-
-type WorkerRepo struct {
-	repository.ScrapeRequestRepository
-	repository.ProductRepository
-}
-
-func NewWorkerRepo(scrape repository.ScrapeRequestRepository, product repository.ProductRepository) WorkerRepository {
-	return &WorkerRepo{scrape, product}
-}
-
-type JobError struct {
-	// used to represent errors that shouldn't be considered worker critical
-	// It indicates the worker is healthy and should continue running.
-	JobID uuid.UUID
-	Err   error
-}
-
-func (e JobError) Error() string {
-	return fmt.Sprintf("job %s: %v", e.JobID, e.Err)
-}
-
-func (e JobError) Unwrap() error {
-	return e.Err
-}
-
 type Worker struct {
-	// in order to make our worker easily testible
-	// we delegate repo and scraper configuration to instantiators
-	repoWithTxFactory func() (WorkerRepository, repository.Transaction, error)
-	scraperFactory    func(string) (services.BaseScraper, error)
+	repo           WorkerRepo
+	scraperFactory func(string) (services.BaseScraper, error)
 }
 
 func NewWorker(
-	repoWithTxFactory func() (WorkerRepository, repository.Transaction, error),
+	wr WorkerRepo,
 	scraperFactory func(string) (services.BaseScraper, error),
 ) *Worker {
-	return &Worker{repoWithTxFactory, scraperFactory}
+	return &Worker{repo: wr, scraperFactory: scraperFactory}
 }
 
 func (w *Worker) RunOnce(ctx context.Context) error {
@@ -75,36 +40,36 @@ func (w *Worker) RunOnce(ctx context.Context) error {
 
 func (w *Worker) ClaimJob(ctx context.Context) (*repository.ScrapeRequest, error) {
 	// create our repo and give us the transation it will use
-	repo, tx, err := w.repoWithTxFactory()
+	session, err := w.repo.BeginSession(ctx)
 
 	if err != nil {
 		return nil, err
 	}
 
 	// grab a job
-	job, err := repo.Dequeue(ctx)
+	job, err := session.Dequeue(ctx)
 
 	if err != nil {
-		tx.Rollback()
+		session.Rollback()
 		return nil, fmt.Errorf("deqeue error %w", err)
 	}
 
 	if job == nil {
 		// though technically no need for rollback as nothing was updated
 		// rollbacking just in case Dequeue changes before this does
-		tx.Rollback()
+		session.Rollback()
 		return nil, ErrNoWork
 	}
 
-	if err = tx.Commit(); err != nil {
-		tx.Rollback()
+	if err = session.Commit(); err != nil {
+		session.Rollback()
 		return nil, fmt.Errorf("dequeue commit error %w", err)
 	}
 	return job, nil
 }
 
 func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) error {
-	repo, tx, err := w.repoWithTxFactory()
+	session, err := w.repo.BeginSession(ctx)
 
 	if err != nil {
 		return err
@@ -112,34 +77,34 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 	scraper, err := w.scraperFactory(job.URL)
 	if err != nil {
 		// dead letter and surpress unsupported urls
-		repo.MarkFailed(ctx, job.ID)
-		tx.Commit()
+		session.MarkFailed(ctx, job.ID)
+		session.Commit()
 		return JobError{JobID: job.ID, Err: err}
 	}
 
 	product, err := scraper.Scrape(ctx, job.URL)
 	if err != nil {
 		// dead letter failing scrapes but escalate for logging
-		repo.MarkFailed(ctx, job.ID)
-		tx.Commit()
+		session.MarkFailed(ctx, job.ID)
+		session.Commit()
 		return JobError{JobID: job.ID, Err: err}
 	}
 
-	product_id, err := repo.UpsertProduct(ctx, *product)
+	product_id, err := session.UpsertProduct(ctx, *product)
 	if err != nil {
-		tx.Rollback()
+		session.Rollback()
 		return fmt.Errorf("process job error %w", err)
 	}
 
-	err = repo.InsertPrice(ctx, product_id, product.Price, product.Currency)
+	err = session.InsertPrice(ctx, product_id, product.Price, product.Currency)
 	if err != nil {
-		tx.Rollback()
+		session.Rollback()
 		return fmt.Errorf("process job error %w", err)
 	}
 
-	repo.MarkDone(ctx, job.ID)
-	if err = tx.Commit(); err != nil {
-		tx.Rollback()
+	session.MarkDone(ctx, job.ID)
+	if err = session.Commit(); err != nil {
+		session.Rollback()
 		return fmt.Errorf("process commit error %w", err)
 	}
 	return nil

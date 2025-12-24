@@ -23,7 +23,6 @@ func TestScrapeRequestRepo_Insert(t *testing.T) {
 	defer tx.Rollback()
 
 	repo := NewPostgresScrapeRequestRepository(tx)
-
 	id, err := repo.Insert(context.Background(), "whatever")
 
 	if err != nil {

@@ -12,19 +12,6 @@ import (
 	"github.com/google/uuid"
 )
 
-type DB interface {
-	// allows us to monkeypatch DB connection
-	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
-	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
-}
-
-type Transaction interface {
-	// allows us to monkeypatch transactions
-
-	Rollback() error
-	Commit() error
-}
-
 type ScrapeRequest struct {
 	ID     uuid.UUID
 	Status string

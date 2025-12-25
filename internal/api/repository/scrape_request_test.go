@@ -11,10 +11,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"uniwish.com/internal/testutil"
 )
 
 func TestScrapeRequestRepo_Insert(t *testing.T) {
-	requireIntegration(t)
+	testutil.RequireIntegration(t)
 	tx, err := testDB.BeginTx(context.Background(), nil)
 
 	if err != nil {
@@ -35,7 +36,7 @@ func TestScrapeRequestRepo_Insert(t *testing.T) {
 }
 
 func TestScrapeRequestRepo_PersistsFields(t *testing.T) {
-	requireIntegration(t)
+	testutil.RequireIntegration(t)
 	tx, err := testDB.BeginTx(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("transaction failed %v", err)
@@ -82,7 +83,7 @@ func TestScrapeRequestRepo_PersistsFields(t *testing.T) {
 }
 
 func TestScrapeRequestRepo_DequeueEmpty(t *testing.T) {
-	requireIntegration(t)
+	testutil.RequireIntegration(t)
 	tx, err := testDB.BeginTx(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("transaction failed %v", err)
@@ -102,7 +103,7 @@ func TestScrapeRequestRepo_DequeueEmpty(t *testing.T) {
 }
 
 func TestScrapeRequestRepo_DequeueProcesses(t *testing.T) {
-	requireIntegration(t)
+	testutil.RequireIntegration(t)
 	tx, err := testDB.BeginTx(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("transaction failed %v", err)
@@ -138,7 +139,7 @@ func TestScrapeRequestRepo_DequeueProcesses(t *testing.T) {
 }
 
 func TestScrapeRequestRepo_MarkDone(t *testing.T) {
-	requireIntegration(t)
+	testutil.RequireIntegration(t)
 	tx, err := testDB.BeginTx(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("transaction failed %v", err)
@@ -177,7 +178,7 @@ func TestScrapeRequestRepo_MarkDone(t *testing.T) {
 }
 
 func TestScrapeRequestRepo_MarkFailed(t *testing.T) {
-	requireIntegration(t)
+	testutil.RequireIntegration(t)
 	tx, err := testDB.BeginTx(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("transaction failed %v", err)

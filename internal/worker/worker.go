@@ -79,17 +79,19 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 		// dead letter and surpress unsupported urls
 		session.MarkFailed(ctx, job.ID)
 		session.Commit()
-		return JobError{JobID: job.ID, Err: err}
+		return JobError{JobID: job.ID, Err: err, Kind: JobUnsupportedStore}
 	}
-
 	product, err := scraper.Scrape(ctx, job.URL)
 	if err != nil {
 		// dead letter failing scrapes but escalate for logging
+		// TODO consider different error codes to easily diagnose different fail cases
 		session.MarkFailed(ctx, job.ID)
 		session.Commit()
-		return JobError{JobID: job.ID, Err: err}
+		return JobError{JobID: job.ID, Err: err, Kind: JobScrapeFailed}
 	}
 
+	// TODO add processing lease metadata on jobs for reaper processes
+	// otherwise failure (transcient or not) on these tasks can leave zombie (eternally processing) jobs
 	product_id, err := session.UpsertProduct(ctx, *product)
 	if err != nil {
 		session.Rollback()

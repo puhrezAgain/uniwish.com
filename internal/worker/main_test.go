@@ -1,9 +1,9 @@
 /*
-uniwish.com/interal/api/repository/main_test
+uniwish.com/interal/api/worker/main_test
 
 centralizes DB testing configuration and initiation
 */
-package repository
+package worker
 
 import (
 	"database/sql"

@@ -57,7 +57,7 @@ func main() {
 	}
 
 	workerRepo := worker.NewWorkerRepo(db)
-	newWorker := worker.NewWorker(&workerRepo, services.NewScraper)
+	newWorker := worker.NewWorker(workerRepo, services.NewScraper)
 	workerSupervisor := worker.WorkerSupervisor{
 		Worker:           newWorker,
 		PollInterval:     cfg.WorkerPollInterval,

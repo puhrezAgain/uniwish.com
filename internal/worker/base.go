@@ -50,15 +50,21 @@ type DefaultWorkerSession struct {
 	*sql.Tx
 }
 
-func NewWorkerRepo(db repository.TransactionCreator) DefaultWorkerRepo {
-	return DefaultWorkerRepo{db}
+func NewWorkerRepo(db repository.TransactionCreator) *DefaultWorkerRepo {
+	return &DefaultWorkerRepo{db}
 }
 
+type JobErrorKind string
+
+const (
+	JobUnsupportedStore JobErrorKind = "unsupported_store"
+	JobScrapeFailed     JobErrorKind = "scrape_failed"
+)
+
 type JobError struct {
-	// used to represent errors that shouldn't be considered worker critical
-	// It indicates the worker is healthy and should continue running.
 	JobID uuid.UUID
 	Err   error
+	Kind  JobErrorKind
 }
 
 func (e JobError) Error() string {

@@ -13,7 +13,9 @@ import (
 	"testing"
 
 	"uniwish.com/internal/api/errors"
+	"uniwish.com/internal/api/repository"
 	"uniwish.com/internal/api/services"
+	"uniwish.com/internal/testutil"
 )
 
 func TestRunOnce(t *testing.T) {
@@ -182,5 +184,41 @@ func TestProcessJob_FaultyTx(t *testing.T) {
 	}
 	if slices.Contains(scraperFactory.Calls(), "New") {
 		t.Fatal("factory called")
+	}
+}
+
+func TestRunOnce_Integration(t *testing.T) {
+	testutil.RequireIntegration(t)
+	testutil.TruncateTables(t, testDB)
+	t.Cleanup(func() {
+		testutil.TruncateTables(t, testDB)
+	})
+
+	repo := repository.NewPostgresScrapeRequestRepository(testDB)
+	expectedUrl := "http://store.com"
+	ctx := context.Background()
+
+	id, err := repo.Insert(ctx, expectedUrl)
+
+	if err != nil {
+		t.Fatalf("insert failed: %v", err)
+	}
+
+	scraper := &DefaultFakeScraper{}
+	scraperFactory := NewFakeScraperFactory(scraper, nil)
+	workerRepo := NewWorkerRepo(testDB)
+	newWorker := NewWorker(workerRepo, scraperFactory.scaperFactoryFunc)
+
+	newWorker.RunOnce(context.Background())
+
+	var status string
+	err = testDB.QueryRow(`
+	SELECT status
+	FROM scrape_requests
+	WHERE id = $1
+	`, id).Scan(&status)
+
+	if status != "done" {
+		t.Fatalf("expected status to be 'done', received, %s", status)
 	}
 }

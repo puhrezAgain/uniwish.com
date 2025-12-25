@@ -34,8 +34,8 @@ func (pr *DefaultProductRepository) UpsertProduct(ctx context.Context, product d
 	VALUES ($1, $2, $3, $4, $5, $6)
 	ON CONFLICT (store, store_product_id)
 	DO UPDATE SET
-		name = EXCLUDED.name
-		update_now = now()
+		name = EXCLUDED.name,
+		updated_at = now()
 	RETURNING id
 	`, product.ID, product.Store, product.StoreProductID, product.Name, product.ImageURL, product.URL)
 

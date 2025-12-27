@@ -10,17 +10,17 @@ import (
 	"fmt"
 
 	"uniwish.com/internal/api/repository"
-	"uniwish.com/internal/api/services"
+	"uniwish.com/internal/scrapers"
 )
 
 type Worker struct {
 	repo           WorkerRepo
-	scraperFactory func(string) (services.BaseScraper, error)
+	scraperFactory func(string) (scrapers.Scraper, error)
 }
 
 func NewWorker(
 	wr WorkerRepo,
-	scraperFactory func(string) (services.BaseScraper, error),
+	scraperFactory func(string) (scrapers.Scraper, error),
 ) *Worker {
 	return &Worker{repo: wr, scraperFactory: scraperFactory}
 }
@@ -81,7 +81,7 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 		session.Commit()
 		return JobError{JobID: job.ID, Err: err, Kind: JobUnsupportedStore}
 	}
-	product, err := scraper.Scrape(ctx, job.URL)
+	productRecord, err := scraper.Scrape(ctx, job.URL)
 	if err != nil {
 		// dead letter failing scrapes but escalate for logging
 		// TODO consider different error codes to easily diagnose different fail cases
@@ -92,16 +92,19 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 
 	// TODO add processing lease metadata on jobs for reaper processes
 	// otherwise failure (transcient or not) on these tasks can leave zombie (eternally processing) jobs
-	product_id, err := session.UpsertProduct(ctx, *product)
+	_, err = session.UpsertProduct(ctx, *productRecord.Product)
 	if err != nil {
 		session.Rollback()
 		return fmt.Errorf("process job error %w", err)
 	}
 
-	err = session.InsertPrice(ctx, product_id, product.Price, product.Currency)
-	if err != nil {
-		session.Rollback()
-		return fmt.Errorf("process job error %w", err)
+	for _, offer := range *productRecord.Offers {
+		err = session.InsertPrice(ctx, offer)
+
+		if err != nil {
+			session.Rollback()
+			return fmt.Errorf("process job error %w", err)
+		}
 	}
 
 	session.MarkDone(ctx, job.ID)

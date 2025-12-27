@@ -15,7 +15,7 @@ import (
 
 type ProductRepository interface {
 	UpsertProduct(context.Context, domain.ProductSnapshot) (uuid.UUID, error)
-	InsertPrice(context.Context, uuid.UUID, float32, string) error
+	InsertPrice(context.Context, domain.Offer) error
 }
 
 type DefaultProductRepository struct {
@@ -37,19 +37,19 @@ func (pr *DefaultProductRepository) UpsertProduct(ctx context.Context, product d
 		name = EXCLUDED.name,
 		updated_at = now()
 	RETURNING id
-	`, product.ID, product.Store, product.StoreProductID, product.Name, product.ImageURL, product.URL)
+	`, product.ID, product.Store, product.SKU, product.Name, product.ImageURL, product.URL)
 
 	if err != nil {
 		return uuid.Nil, fmt.Errorf("product upsert error %ws", err)
 	}
 	return product.ID, nil
 }
-func (pr *DefaultProductRepository) InsertPrice(ctx context.Context, productID uuid.UUID, price float32, currency string) error {
+func (pr *DefaultProductRepository) InsertPrice(ctx context.Context, offer domain.Offer) error {
 	_, err := pr.db.ExecContext(ctx,
 		`
 	INSERT INTO prices (id, product_id, price, currency, scraped_at)
 	VALUES ($1, $2, $3, $4, now())
-	`, uuid.New(), productID, price, currency)
+	`, offer.ID, offer.ProductID, offer.Price, offer.Currency)
 
 	if err != nil {
 		return fmt.Errorf("price insert error %w", err)

@@ -12,8 +12,8 @@ import (
 	"github.com/google/uuid"
 	"uniwish.com/internal/api/errors"
 	"uniwish.com/internal/api/repository"
-	"uniwish.com/internal/api/services"
 	"uniwish.com/internal/domain"
+	"uniwish.com/internal/scrapers"
 )
 
 func NewFakeJob() *repository.ScrapeRequest {
@@ -24,16 +24,26 @@ func NewFakeJob() *repository.ScrapeRequest {
 	}
 }
 
-func NewFakeProduct() *domain.ProductSnapshot {
-	return &domain.ProductSnapshot{
-		ID:             uuid.New(),
-		Store:          "zara",
-		StoreProductID: "12345",
-		Name:           "Zara jacket",
-		ImageURL:       "http://zara.com/img.jpeg",
-		Price:          45.32,
-		Currency:       "euro",
+func NewFakeProduct() *domain.ProductRecord {
+	product := &domain.ProductSnapshot{
+		ID:       uuid.New(),
+		Store:    "zara",
+		SKU:      "12345",
+		Name:     "Zara jacket",
+		ImageURL: "http://zara.com/img.jpeg",
 	}
+
+	offers := &[]domain.Offer{
+		{
+			Price:    45.32,
+			Currency: "EUR",
+		},
+		{
+			Price:    25.32,
+			Currency: "EUR",
+		},
+	}
+	return &domain.ProductRecord{Product: product, Offers: offers}
 }
 
 type CallRecorder struct {
@@ -100,7 +110,7 @@ func (r *DefaultFakeWorkerSession) UpsertProduct(context.Context, domain.Product
 	r.record("UpsertProduct")
 	return uuid.Nil, nil
 }
-func (r *DefaultFakeWorkerSession) InsertPrice(context.Context, uuid.UUID, float32, string) error {
+func (r *DefaultFakeWorkerSession) InsertPrice(context.Context, domain.Offer) error {
 	r.record("InsertPrice")
 	return nil
 }
@@ -183,16 +193,16 @@ func (t *FaultyCommitRepoSession) Commit() error {
 }
 
 type FakeScraper interface {
-	services.BaseScraper
+	scrapers.Scraper
 	Calls() []string
 }
 
 type DefaultFakeScraper struct {
-	services.Scraper
+	scrapers.DefaultScraper
 	CallRecorder
 }
 
-func (s *DefaultFakeScraper) Scrape(ctx context.Context, url string) (*domain.ProductSnapshot, error) {
+func (s *DefaultFakeScraper) Scrape(ctx context.Context, url string) (*domain.ProductRecord, error) {
 	s.record("Scrape")
 	return NewFakeProduct(), nil
 }
@@ -201,22 +211,22 @@ type FakeFaultyScraper struct {
 	DefaultFakeScraper
 }
 
-func (s *FakeFaultyScraper) Scrape(ctx context.Context, url string) (*domain.ProductSnapshot, error) {
+func (s *FakeFaultyScraper) Scrape(ctx context.Context, url string) (*domain.ProductRecord, error) {
 	s.DefaultFakeScraper.Scrape(ctx, url)
 	return nil, errors.ErrScrapeFailed
 }
 
 type FakeScraperFactory struct {
-	scraper           services.BaseScraper
-	scaperFactoryFunc func(string) (services.BaseScraper, error)
+	scraper           scrapers.Scraper
+	scaperFactoryFunc func(string) (scrapers.Scraper, error)
 	CallRecorder
 }
 
-func NewFakeScraperFactory(scraper services.BaseScraper, factoryError error) *FakeScraperFactory {
+func NewFakeScraperFactory(scraper scrapers.Scraper, factoryError error) *FakeScraperFactory {
 	sf := FakeScraperFactory{
 		scraper: scraper,
 	}
-	sf.scaperFactoryFunc = func(URL string) (services.BaseScraper, error) {
+	sf.scaperFactoryFunc = func(URL string) (scrapers.Scraper, error) {
 		sf.calls = append(sf.calls, "New")
 
 		return sf.scraper, factoryError
@@ -224,6 +234,6 @@ func NewFakeScraperFactory(scraper services.BaseScraper, factoryError error) *Fa
 	return &sf
 }
 
-func NewUnsupoportedScraper(_ string) (services.BaseScraper, error) {
+func NewUnsupoportedScraper(_ string) (scrapers.Scraper, error) {
 	return nil, errors.ErrStoreUnsupported
 }

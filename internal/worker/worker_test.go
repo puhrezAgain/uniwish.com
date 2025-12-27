@@ -14,7 +14,7 @@ import (
 
 	"uniwish.com/internal/api/errors"
 	"uniwish.com/internal/api/repository"
-	"uniwish.com/internal/api/services"
+	"uniwish.com/internal/scrapers"
 	"uniwish.com/internal/testutil"
 )
 
@@ -39,6 +39,7 @@ func TestRunOnce(t *testing.T) {
 				"Dequeue",
 				"Commit",
 				"UpsertProduct",
+				"InsertPrice",
 				"InsertPrice",
 				"MarkDone",
 				"Commit",
@@ -154,7 +155,7 @@ func TestProcessJob_FaultyCommit(t *testing.T) {
 	scraper := &DefaultFakeScraper{}
 	scraperFactory := NewFakeScraperFactory(scraper, nil)
 	worker := NewWorker(repo, scraperFactory.scaperFactoryFunc)
-	expectedCalls := []string{"UpsertProduct", "InsertPrice", "MarkDone", "Commit", "Rollback"}
+	expectedCalls := []string{"UpsertProduct", "InsertPrice", "InsertPrice", "MarkDone", "Commit", "Rollback"}
 	worker.ProcessJob(context.Background(), NewFakeJob())
 	if !slices.Equal(repo.Session().Calls(), expectedCalls) {
 		t.Fatalf("Expected %q, received %q", expectedCalls, repo.Session().Calls())
@@ -163,7 +164,7 @@ func TestProcessJob_FaultyCommit(t *testing.T) {
 
 func TestClaimJob_FaultyTx(t *testing.T) {
 	repo := &FaultyTransactionRepo{}
-	stubScraperFactory := func(_ string) (services.BaseScraper, error) {
+	stubScraperFactory := func(_ string) (scrapers.Scraper, error) {
 		return nil, nil
 	}
 	worker := NewWorker(repo, stubScraperFactory)

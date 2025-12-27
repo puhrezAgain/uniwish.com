@@ -6,32 +6,29 @@ contains logic related to scrapers and scraping
 package services
 
 import (
-	"context"
 	"net/url"
+	"strings"
+	"time"
 
 	"uniwish.com/internal/api/errors"
-	"uniwish.com/internal/domain"
+	"uniwish.com/internal/scrapers"
+	"uniwish.com/internal/scrapers/zara"
 )
 
-type BaseScraper interface {
-	Scrape(ctx context.Context, url string) (*domain.ProductSnapshot, error)
-}
-
-type Scraper struct{}
-
-func NewScraper(URL string) (BaseScraper, error) {
+func NewScraper(URL string) (scrapers.Scraper, error) {
 	parsed, err := url.Parse(URL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
 		return nil, errors.ErrInputInvalid
 	}
 
-	if parsed.Host != "store.com" { // TODO: when scrapers defined, change this to ensure host maps to a scraper
+	switch {
+	case strings.Contains(parsed.Host, "zara.com"):
+		// TODO should timeout be configuration based?
+		return zara.NewZaraScraper(10 * time.Second), nil
+	case parsed.Host == "store.com":
+		// TODO, perhaps dependency inject this map to make monkey patching trivial?
+		return scrapers.NewDefaultScraper(), nil
+	default:
 		return nil, errors.ErrStoreUnsupported
 	}
-
-	return &Scraper{}, nil
-}
-
-func (s *Scraper) Scrape(ctx context.Context, url string) (*domain.ProductSnapshot, error) {
-	return nil, nil
 }

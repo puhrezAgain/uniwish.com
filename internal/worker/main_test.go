@@ -17,10 +17,13 @@ import (
 var testDB *sql.DB
 
 func TestMain(m *testing.M) {
-	testDB = testutil.OpenDB()
-
+	if os.Getenv("INTEGRATION_TESTS") != "" {
+		testDB = testutil.OpenDB()
+	}
 	code := m.Run()
 
-	testDB.Close()
+	if testDB != nil {
+		testDB.Close()
+	}
 	os.Exit(code)
 }

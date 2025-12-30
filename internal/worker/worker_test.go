@@ -40,7 +40,6 @@ func TestRunOnce(t *testing.T) {
 				"Commit",
 				"UpsertProduct",
 				"InsertPrice",
-				"InsertPrice",
 				"MarkDone",
 				"Commit",
 			},
@@ -155,7 +154,7 @@ func TestProcessJob_FaultyCommit(t *testing.T) {
 	scraper := &DefaultFakeScraper{}
 	scraperFactory := NewFakeScraperFactory(scraper, nil)
 	worker := NewWorker(repo, scraperFactory.scaperFactoryFunc)
-	expectedCalls := []string{"UpsertProduct", "InsertPrice", "InsertPrice", "MarkDone", "Commit", "Rollback"}
+	expectedCalls := []string{"UpsertProduct", "InsertPrice", "MarkDone", "Commit", "Rollback"}
 	worker.ProcessJob(context.Background(), NewFakeJob())
 	if !slices.Equal(repo.Session().Calls(), expectedCalls) {
 		t.Fatalf("Expected %q, received %q", expectedCalls, repo.Session().Calls())
@@ -210,8 +209,11 @@ func TestRunOnce_Integration(t *testing.T) {
 	workerRepo := NewWorkerRepo(testDB)
 	newWorker := NewWorker(workerRepo, scraperFactory.scaperFactoryFunc)
 
-	newWorker.RunOnce(context.Background())
+	err = newWorker.RunOnce(context.Background())
 
+	if err != nil {
+		t.Fatalf("expected nil err, recevied %v", err)
+	}
 	var status string
 	err = testDB.QueryRow(`
 	SELECT status

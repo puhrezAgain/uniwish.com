@@ -25,8 +25,9 @@ func NewFakeJob() *repository.ScrapeRequest {
 }
 
 func NewFakeProduct() *domain.ProductRecord {
+	productID := uuid.New()
 	product := &domain.ProductSnapshot{
-		ID:       uuid.New(),
+		ID:       productID,
 		Store:    "zara",
 		SKU:      "12345",
 		Name:     "Zara jacket",
@@ -35,12 +36,16 @@ func NewFakeProduct() *domain.ProductRecord {
 
 	offers := &[]domain.Offer{
 		{
-			Price:    45.32,
-			Currency: "EUR",
+			ID:        uuid.New(),
+			ProductID: productID,
+			Price:     45.32,
+			Currency:  "EUR",
 		},
 		{
-			Price:    25.32,
-			Currency: "EUR",
+			ID:        uuid.New(),
+			ProductID: productID,
+			Price:     25.32,
+			Currency:  "EUR",
 		},
 	}
 	return &domain.ProductRecord{Product: product, Offers: offers}
@@ -81,7 +86,7 @@ func (wr *DefaultFakeRepo) BeginSession(ctx context.Context) (WorkerSession, err
 
 type FakeWorkerSession interface {
 	repository.ScrapeRequestRepository
-	repository.ProductRepository
+	ProductWriter
 	repository.Transaction
 	Calls() []string
 }
@@ -110,7 +115,7 @@ func (r *DefaultFakeWorkerSession) UpsertProduct(context.Context, domain.Product
 	r.record("UpsertProduct")
 	return uuid.Nil, nil
 }
-func (r *DefaultFakeWorkerSession) InsertPrice(context.Context, domain.Offer) error {
+func (r *DefaultFakeWorkerSession) InsertPrice(context.Context, []domain.Offer) error {
 	r.record("InsertPrice")
 	return nil
 }

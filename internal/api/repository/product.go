@@ -1,59 +1,137 @@
 /*
-uniwish.com/interal/api/repository/product
+uniwish.com/internal/api/repository/products
 
-db logic for products and prices
+contains logic of application's product read layer
 */
 package repository
 
 import (
 	"context"
-	"fmt"
+	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
-	"uniwish.com/internal/domain"
 )
 
-type ProductRepository interface {
-	UpsertProduct(context.Context, domain.ProductSnapshot) (uuid.UUID, error)
-	InsertPrice(context.Context, domain.Offer) error
+type ProductListItem struct {
+	Name      string
+	Store     string
+	ImageURL  string
+	LastPrice float64
+	Currency  string
 }
 
-type DefaultProductRepository struct {
+type ProductDetail struct {
+	Name     string
+	Store    string
+	ImageURL string
+	Offers   []OfferListItem
+}
+
+type OfferListItem struct {
+	Price        float64
+	Currency     string
+	Availability string
+	UpdatedAt    time.Time
+}
+
+type ProductReader interface {
+	ListProducts(ctx context.Context) ([]ProductListItem, error)
+	GetProduct(ctx context.Context, id uuid.UUID) (*ProductDetail, error)
+}
+
+type DefaultProductReader struct {
 	db DB
 }
 
-func NewProductRepository(db DB) ProductRepository {
-	return &DefaultProductRepository{db: db}
-}
+func (p *DefaultProductReader) ListProducts(ctx context.Context) ([]ProductListItem, error) {
+	// TODO: add product_id, scraped_at, currency index to DB
 
-func (pr *DefaultProductRepository) UpsertProduct(ctx context.Context, product domain.ProductSnapshot) (uuid.UUID, error) {
-	_, err := pr.db.ExecContext(ctx,
+	rows, err := p.db.QueryContext(
+		ctx,
 		`
-	INSERT INTO products
-	(id, store, store_product_id, name, image_url, url)
-	VALUES ($1, $2, $3, $4, $5, $6)
-	ON CONFLICT (store, store_product_id)
-	DO UPDATE SET
-		name = EXCLUDED.name,
-		updated_at = now()
-	RETURNING id
-	`, product.ID, product.Store, product.SKU, product.Name, product.ImageURL, product.URL)
-
+		SELECT p.name, p.store, p.image_url, pr.price, pr.currency
+		FROM products p 
+		LEFT JOIN LATERAL (
+		SELECT price, currency
+		FROM prices 
+		WHERE product_id = p.id
+		ORDER BY scraped_at DESC
+		LIMIT 1
+		) pr ON TRUE
+		`,
+	)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("product upsert error %ws", err)
-	}
-	return product.ID, nil
-}
-func (pr *DefaultProductRepository) InsertPrice(ctx context.Context, offer domain.Offer) error {
-	_, err := pr.db.ExecContext(ctx,
-		`
-	INSERT INTO prices (id, product_id, price, currency, scraped_at)
-	VALUES ($1, $2, $3, $4, now())
-	`, offer.ID, offer.ProductID, offer.Price, offer.Currency)
-
-	if err != nil {
-		return fmt.Errorf("price insert error %w", err)
+		return nil, err
 	}
 
-	return nil
+	defer rows.Close()
+	var products []ProductListItem
+
+	for rows.Next() {
+		var p ProductListItem
+		if err := rows.Scan(
+			&p.Name, &p.Store,
+			&p.ImageURL, &p.LastPrice, &p.Currency); err != nil {
+			return nil, err
+		}
+
+		products = append(products, p)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return products, nil
+}
+
+func (p *DefaultProductReader) GetProduct(ctx context.Context, id uuid.UUID) (*ProductDetail, error) {
+	// TODO: use sql to grab basic info for product and each offer
+	rows, err := p.db.QueryContext(ctx,
+		`
+		SELECT p.name, p.store, p.image_url, pr.price, pr.currency, pr.scraped_at
+		FROM products p JOIN prices pr ON p.id = pr.product_id
+		WHERE p.id = $1
+		ORDER BY pr.scraped_at ASC
+		`, id,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	var pd *ProductDetail
+	for rows.Next() {
+		var (
+			name      string
+			store     string
+			image_url string
+			offer     OfferListItem
+		)
+		if err := rows.Scan(
+			&name, &store, &image_url, &offer.Price,
+			&offer.Currency, &offer.UpdatedAt); err != nil {
+			return nil, err
+		}
+
+		if pd == nil {
+			pd = &ProductDetail{Name: name, Store: store, ImageURL: image_url, Offers: make([]OfferListItem, 0)}
+		}
+
+		pd.Offers = append(pd.Offers, offer)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if pd == nil {
+		return nil, sql.ErrNoRows
+	}
+	return pd, nil
 }

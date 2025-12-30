@@ -28,12 +28,12 @@ func NewWorker(
 func (w *Worker) RunOnce(ctx context.Context) error {
 	job, err := w.ClaimJob(ctx)
 	if err != nil {
-		return fmt.Errorf("claim job error %w", err)
+		return fmt.Errorf("claim job error: %w", err)
 	}
 
 	err = w.ProcessJob(ctx, job)
 	if err != nil {
-		return fmt.Errorf("process job error %w", err)
+		return fmt.Errorf("process job error: %w", err)
 	}
 	return nil
 }
@@ -51,7 +51,7 @@ func (w *Worker) ClaimJob(ctx context.Context) (*repository.ScrapeRequest, error
 
 	if err != nil {
 		session.Rollback()
-		return nil, fmt.Errorf("deqeue error %w", err)
+		return nil, fmt.Errorf("deqeue error: %w", err)
 	}
 
 	if job == nil {
@@ -63,7 +63,7 @@ func (w *Worker) ClaimJob(ctx context.Context) (*repository.ScrapeRequest, error
 
 	if err = session.Commit(); err != nil {
 		session.Rollback()
-		return nil, fmt.Errorf("dequeue commit error %w", err)
+		return nil, fmt.Errorf("dequeue commit error: %w", err)
 	}
 	return job, nil
 }
@@ -95,22 +95,20 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 	_, err = session.UpsertProduct(ctx, *productRecord.Product)
 	if err != nil {
 		session.Rollback()
-		return fmt.Errorf("process job error %w", err)
+		return fmt.Errorf("process job error: %w", err)
 	}
 
-	for _, offer := range *productRecord.Offers {
-		err = session.InsertPrice(ctx, offer)
+	err = session.InsertPrice(ctx, *productRecord.Offers)
 
-		if err != nil {
-			session.Rollback()
-			return fmt.Errorf("process job error %w", err)
-		}
+	if err != nil {
+		session.Rollback()
+		return fmt.Errorf("process job error: %w", err)
 	}
 
 	session.MarkDone(ctx, job.ID)
 	if err = session.Commit(); err != nil {
 		session.Rollback()
-		return fmt.Errorf("process commit error %w", err)
+		return fmt.Errorf("process commit error: %w", err)
 	}
 	return nil
 }

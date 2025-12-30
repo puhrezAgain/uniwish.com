@@ -32,7 +32,7 @@ func (wr *DefaultWorkerRepo) BeginSession(ctx context.Context) (WorkerSession, e
 
 	return &DefaultWorkerSession{
 		repository.NewPostgresScrapeRequestRepository(wr.db),
-		repository.NewProductRepository(wr.db),
+		NewProductWriter(wr.db),
 		tx,
 	}, nil
 
@@ -40,13 +40,13 @@ func (wr *DefaultWorkerRepo) BeginSession(ctx context.Context) (WorkerSession, e
 
 type WorkerSession interface {
 	repository.ScrapeRequestRepository
-	repository.ProductRepository
+	ProductWriter
 	repository.Transaction
 }
 
 type DefaultWorkerSession struct {
 	repository.ScrapeRequestRepository
-	repository.ProductRepository
+	ProductWriter
 	*sql.Tx
 }
 

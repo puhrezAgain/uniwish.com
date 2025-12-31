@@ -6,23 +6,19 @@ scrape_request http service
 package handlers
 
 import (
-	"context"
 	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
 	"uniwish.com/internal/api/errors"
+	"uniwish.com/internal/api/services"
 )
 
-type ScrapeRequester interface {
-	Request(ctx context.Context, rawUrl string) (uuid.UUID, error)
-}
-
 type CreateScrapeRequestHandler struct {
-	service ScrapeRequester
+	service services.ScrapeRequester
 }
 
-func NewCreateItemHandler(srv ScrapeRequester) *CreateScrapeRequestHandler {
+func NewCreateItemHandler(srv services.ScrapeRequester) *CreateScrapeRequestHandler {
 	return &CreateScrapeRequestHandler{service: srv}
 }
 

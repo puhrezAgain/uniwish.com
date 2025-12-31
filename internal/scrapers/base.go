@@ -19,6 +19,7 @@ type Scraper interface {
 	Fetch(context.Context, string) (io.ReadCloser, error)
 	ParseProduct(io.Reader) (*domain.ProductSnapshot, *[]domain.Offer, error)
 }
+
 type DefaultScraper struct{}
 
 func NewDefaultScraper() *DefaultScraper {

@@ -44,6 +44,10 @@ type DefaultProductReader struct {
 	db DB
 }
 
+func NewDefaultProductReader(db DB) ProductReader {
+	return &DefaultProductReader{db: db}
+}
+
 func (p *DefaultProductReader) ListProducts(ctx context.Context) ([]ProductListItem, error) {
 	// TODO: add product_id, scraped_at, currency index to DB
 

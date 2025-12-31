@@ -19,8 +19,16 @@ func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
 	healthHandler := handlers.NewHealthHandler(healthServce)
 	mux.Handle("/health", healthHandler)
 
-	repo := repository.NewPostgresScrapeRequestRepository(db)
-	scrapeRequestService := services.NewScrapeRequestService(repo)
+	scrapeRepo := repository.NewPostgresScrapeRequestRepository(db)
+
+	scrapeRequestService := services.NewScrapeRequestService(scrapeRepo)
 	scrapeRequestHandler := handlers.NewCreateItemHandler(scrapeRequestService)
 	mux.Handle("/scrape-requests", scrapeRequestHandler)
+
+	productRepo := repository.NewDefaultProductReader(db)
+	productService := services.NewDefaultProductReaderService(productRepo)
+	productHandler := handlers.NewDefaultProductHandler(productService)
+	mux.HandleFunc("/products", productHandler.ListProducts)
+	mux.HandleFunc("/products/{id}", productHandler.GetProduct)
+
 }

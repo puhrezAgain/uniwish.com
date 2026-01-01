@@ -14,15 +14,15 @@ import (
 )
 
 type Worker struct {
-	repo           WorkerRepo
-	scraperFactory func(string) (scrapers.Scraper, error)
+	repo     WorkerRepo
+	registry scrapers.Registry
 }
 
 func NewWorker(
 	wr WorkerRepo,
-	scraperFactory func(string) (scrapers.Scraper, error),
+	registry scrapers.Registry,
 ) *Worker {
-	return &Worker{repo: wr, scraperFactory: scraperFactory}
+	return &Worker{repo: wr, registry: registry}
 }
 
 func (w *Worker) RunOnce(ctx context.Context) error {
@@ -74,7 +74,7 @@ func (w *Worker) ProcessJob(ctx context.Context, job *repository.ScrapeRequest) 
 	if err != nil {
 		return err
 	}
-	scraper, err := w.scraperFactory(job.URL)
+	scraper, err := w.registry.NewScraperFor(job.URL)
 	if err != nil {
 		// dead letter and surpress unsupported urls
 		session.MarkFailed(ctx, job.ID)

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	apiErrors "uniwish.com/internal/api/errors"
 	"uniwish.com/internal/api/repository"
+	"uniwish.com/internal/scrapers"
 )
 
 var fakeId uuid.UUID = uuid.New()
@@ -35,6 +36,13 @@ func (r *FakeRepo) MarkDone(_ context.Context, _ uuid.UUID) error {
 func (r *FakeRepo) MarkFailed(_ context.Context, _ uuid.UUID) error {
 	return nil
 }
+
+var FakeRegistry = scrapers.NewScraperRegistry(map[string]scrapers.ScraperFactory{
+	"store.com": func() scrapers.Scraper {
+		return nil
+	},
+},
+)
 
 func TestScrapeRequestService(t *testing.T) {
 	tests := []struct {
@@ -84,7 +92,7 @@ func TestScrapeRequestService(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			srv := NewScrapeRequestService(&FakeRepo{})
+			srv := NewScrapeRequestService(&FakeRepo{}, FakeRegistry)
 			r, e := srv.Request(context.Background(), tt.url)
 
 			if !errors.Is(e, tt.expectedError) {

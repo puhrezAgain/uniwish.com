@@ -14,6 +14,7 @@ import (
 
 	"uniwish.com/internal/api"
 	"uniwish.com/internal/api/config"
+	"uniwish.com/internal/scrapers"
 )
 
 func main() {
@@ -51,7 +52,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	server := api.NewServer(cfg, logger, db)
+	server := api.NewServer(cfg, logger, db, scrapers.DefaultScraperRegistry)
 
 	errCh := make(chan error, 1)
 	go func() {

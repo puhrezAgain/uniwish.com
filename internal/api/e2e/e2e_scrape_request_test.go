@@ -32,7 +32,7 @@ func requireE2E(t *testing.T) {
 
 func TestCreateScrapeRequest_EndToEnd(t *testing.T) {
 	requireE2E(t)
-	storeUrl := "http://store.com/product/123"
+	storeUrl := "http://zara.com/product/123"
 
 	req, err := http.NewRequest(
 		http.MethodPost,

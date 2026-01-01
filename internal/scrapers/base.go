@@ -1,7 +1,7 @@
 /*
-uniwish.com/internal/scrapers/zara/scraper
+uniwish.com/internal/scrapers/base
 
-contains logic related to http interaction with zara pages
+centralizes base scraper structs and interfaces
 */
 
 package scrapers

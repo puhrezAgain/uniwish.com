@@ -12,16 +12,17 @@ import (
 	"uniwish.com/internal/api/handlers"
 	"uniwish.com/internal/api/repository"
 	"uniwish.com/internal/api/services"
+	"uniwish.com/internal/scrapers"
 )
 
-func RegisterRoutes(mux *http.ServeMux, db *sql.DB) {
+func RegisterRoutes(mux *http.ServeMux, db *sql.DB, registry scrapers.Registry) {
 	healthServce := services.NewHealthService()
 	healthHandler := handlers.NewHealthHandler(healthServce)
 	mux.Handle("/health", healthHandler)
 
 	scrapeRepo := repository.NewPostgresScrapeRequestRepository(db)
 
-	scrapeRequestService := services.NewScrapeRequestService(scrapeRepo)
+	scrapeRequestService := services.NewScrapeRequestService(scrapeRepo, registry)
 	scrapeRequestHandler := handlers.NewCreateItemHandler(scrapeRequestService)
 	mux.Handle("/scrape-requests", scrapeRequestHandler)
 

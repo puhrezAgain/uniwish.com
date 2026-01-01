@@ -7,44 +7,24 @@ package services
 
 import (
 	"context"
-	"net/url"
-	"strings"
-	"time"
+	goErrors "errors"
 
 	"github.com/google/uuid"
 	"uniwish.com/internal/api/errors"
 	"uniwish.com/internal/api/repository"
 	"uniwish.com/internal/scrapers"
-	"uniwish.com/internal/scrapers/zara"
 )
 
 type ScrapeRequester interface {
 	Request(ctx context.Context, rawUrl string) (uuid.UUID, error)
 }
 type ScrapeRequestService struct {
-	repo repository.ScrapeRequestRepository
+	repo     repository.ScrapeRequestRepository
+	registry scrapers.Registry
 }
 
-func NewScrapeRequestService(r repository.ScrapeRequestRepository) *ScrapeRequestService {
-	return &ScrapeRequestService{repo: r}
-}
-
-func NewScraper(URL string) (scrapers.Scraper, error) {
-	parsed, err := url.Parse(URL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return nil, errors.ErrInputInvalid
-	}
-
-	switch {
-	case strings.Contains(parsed.Host, "zara.com"):
-		// TODO should timeout be configuration based?
-		return zara.NewZaraScraper(10 * time.Second), nil
-	case parsed.Host == "store.com":
-		// TODO, perhaps dependency inject this map to make monkey patching trivial?
-		return scrapers.NewDefaultScraper(), nil
-	default:
-		return nil, errors.ErrStoreUnsupported
-	}
+func NewScrapeRequestService(sr repository.ScrapeRequestRepository, registry scrapers.Registry) *ScrapeRequestService {
+	return &ScrapeRequestService{repo: sr, registry: registry}
 }
 
 func (s *ScrapeRequestService) Request(ctx context.Context, rawUrl string) (uuid.UUID, error) {
@@ -52,11 +32,15 @@ func (s *ScrapeRequestService) Request(ctx context.Context, rawUrl string) (uuid
 	if rawUrl == "" {
 		return uuid.Nil, errors.ErrInputInvalid
 	}
-	_, err := NewScraper(rawUrl)
 
-	if err != nil {
-		return uuid.Nil, err
+	err := s.registry.AssertSupports(rawUrl)
+
+	switch {
+	case goErrors.Is(err, scrapers.ErrInvalidURL):
+		return uuid.Nil, errors.ErrInputInvalid
+	case goErrors.Is(err, scrapers.ErrNoScraper):
+		return uuid.Nil, errors.ErrStoreUnsupported
+	default:
+		return s.repo.Insert(ctx, rawUrl)
 	}
-
-	return s.repo.Insert(ctx, rawUrl)
 }

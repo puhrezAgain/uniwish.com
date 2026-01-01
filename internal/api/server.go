@@ -14,6 +14,7 @@ import (
 
 	"uniwish.com/internal/api/config"
 	"uniwish.com/internal/api/middleware"
+	"uniwish.com/internal/scrapers"
 )
 
 type Server struct {
@@ -30,10 +31,10 @@ func (s *Server) Shutdown(shutdownCtx context.Context) error {
 	s.logger.Info("http server shutting down")
 	return s.httpServer.Shutdown(shutdownCtx)
 }
-func NewServer(cfg *config.Config, logger *slog.Logger, db *sql.DB) *Server {
+func NewServer(cfg *config.Config, logger *slog.Logger, db *sql.DB, registry scrapers.Registry) *Server {
 	mux := http.NewServeMux()
 
-	RegisterRoutes(mux, db)
+	RegisterRoutes(mux, db, registry)
 
 	handler := middleware.Logging(logger)(mux)
 

@@ -17,7 +17,7 @@ import (
 	_ "github.com/lib/pq"
 
 	"uniwish.com/internal/api/config"
-	"uniwish.com/internal/api/services"
+	"uniwish.com/internal/scrapers"
 	"uniwish.com/internal/worker"
 )
 
@@ -57,7 +57,7 @@ func main() {
 	}
 
 	workerRepo := worker.NewWorkerRepo(db)
-	newWorker := worker.NewWorker(workerRepo, services.NewScraper)
+	newWorker := worker.NewWorker(workerRepo, scrapers.DefaultScraperRegistry)
 	workerSupervisor := worker.WorkerSupervisor{
 		Worker:           newWorker,
 		PollInterval:     cfg.WorkerPollInterval,

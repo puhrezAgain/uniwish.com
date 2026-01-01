@@ -20,21 +20,17 @@ import (
 
 func TestRunOnce(t *testing.T) {
 	tests := []struct {
-		name                string
-		repo                FakeRepo
-		scraper             FakeScraper
-		factoryError        error
-		expectedErr         error
-		repoCalls           []string
-		scraperFactoryCalls []string
-		scraperCalls        []string
+		name                   string
+		repo                   FakeRepo
+		scraper                FakeScraper
+		scraperRegistryFactory func(FakeScraper) *scrapers.ScraperRegistry
+		expectedErr            error
+		repoCalls              []string
+		scraperCalls           []string
 	}{
 		{
-			name:         "success",
-			repo:         &DefaultFakeRepo{},
-			scraper:      &DefaultFakeScraper{},
-			factoryError: nil,
-			expectedErr:  nil,
+			name: "success",
+			repo: &DefaultFakeRepo{},
 			repoCalls: []string{
 				"Dequeue",
 				"Commit",
@@ -43,86 +39,68 @@ func TestRunOnce(t *testing.T) {
 				"MarkDone",
 				"Commit",
 			},
-			scraperFactoryCalls: []string{
-				"New",
-			},
 			scraperCalls: []string{
+				"New",
 				"Scrape",
 			},
 		},
 		{
-			name:         "no_jobs",
-			repo:         &FakeNoJobsRepo{},
-			scraper:      &DefaultFakeScraper{},
-			factoryError: nil,
-			expectedErr:  ErrNoWork,
+			name:        "no_jobs",
+			repo:        &FakeNoJobsRepo{},
+			expectedErr: ErrNoWork,
 			repoCalls: []string{
 				"Dequeue",
 				"Rollback",
-			},
-			scraperFactoryCalls: []string{},
-			scraperCalls:        []string{},
-		},
-		{
-			name:         "not_supported",
-			repo:         &DefaultFakeRepo{},
-			scraper:      &DefaultFakeScraper{},
-			factoryError: errors.ErrStoreUnsupported,
-			expectedErr:  errors.ErrStoreUnsupported,
-			repoCalls: []string{
-				"Dequeue",
-				"Commit",
-				"MarkFailed",
-				"Commit",
-			},
-			scraperFactoryCalls: []string{
-				"New",
 			},
 			scraperCalls: []string{},
 		},
 		{
-			name:         "db_error",
-			repo:         &FakeDBErrorRepo{},
-			scraper:      &DefaultFakeScraper{},
-			factoryError: nil,
-			expectedErr:  sql.ErrConnDone,
-			repoCalls: []string{
-				"Dequeue",
-				"Rollback",
-			},
-			scraperFactoryCalls: []string{},
-			scraperCalls:        []string{},
-		},
-		{
-			name:         "faulty_commit",
-			repo:         &FaultyCommitRepo{},
-			scraper:      &DefaultFakeScraper{},
-			factoryError: nil,
-			expectedErr:  sql.ErrTxDone,
-			repoCalls: []string{
-				"Dequeue",
-				"Commit",
-				"Rollback",
-			},
-			scraperFactoryCalls: []string{},
-			scraperCalls:        []string{},
-		},
-		{
-			name:         "faulty_scrape",
-			repo:         &DefaultFakeRepo{},
-			scraper:      &FakeFaultyScraper{},
-			factoryError: nil,
-			expectedErr:  errors.ErrScrapeFailed,
+			name:                   "not_supported",
+			repo:                   &DefaultFakeRepo{},
+			scraperRegistryFactory: NewEmptyScraperRegistry,
+			expectedErr:            scrapers.ErrNoScraper,
 			repoCalls: []string{
 				"Dequeue",
 				"Commit",
 				"MarkFailed",
 				"Commit",
 			},
-			scraperFactoryCalls: []string{
-				"New",
+			scraperCalls: []string{},
+		},
+		{
+			name:        "db_error",
+			repo:        &FakeDBErrorRepo{},
+			expectedErr: sql.ErrConnDone,
+			repoCalls: []string{
+				"Dequeue",
+				"Rollback",
+			},
+			scraperCalls: []string{},
+		},
+		{
+			name:        "faulty_commit",
+			repo:        &FaultyCommitRepo{},
+			expectedErr: sql.ErrTxDone,
+			repoCalls: []string{
+				"Dequeue",
+				"Commit",
+				"Rollback",
+			},
+			scraperCalls: []string{},
+		},
+		{
+			name:        "faulty_scrape",
+			repo:        &DefaultFakeRepo{},
+			scraper:     &FakeFaultyScraper{},
+			expectedErr: errors.ErrScrapeFailed,
+			repoCalls: []string{
+				"Dequeue",
+				"Commit",
+				"MarkFailed",
+				"Commit",
 			},
 			scraperCalls: []string{
+				"New",
 				"Scrape",
 			},
 		},
@@ -130,8 +108,17 @@ func TestRunOnce(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			scraperFactory := NewFakeScraperFactory(tt.scraper, tt.factoryError)
-			worker := NewWorker(tt.repo, scraperFactory.scaperFactoryFunc)
+			scraper := tt.scraper
+			if scraper == nil {
+				scraper = &DefaultFakeScraper{}
+			}
+			f := tt.scraperRegistryFactory
+			if f == nil {
+				f = NewFakeScraperRegistry
+			}
+
+			registry := f(scraper)
+			worker := NewWorker(tt.repo, registry)
 			rv := worker.RunOnce(context.Background())
 			if !goErrors.Is(rv, tt.expectedErr) {
 				t.Fatalf("expected rv %v received %v", tt.expectedErr, rv)
@@ -139,11 +126,8 @@ func TestRunOnce(t *testing.T) {
 			if !slices.Equal(tt.repoCalls, tt.repo.Session().Calls()) {
 				t.Fatalf("Expected %q, received %q", tt.repoCalls, tt.repo.Session().Calls())
 			}
-			if !slices.Equal(tt.scraperCalls, tt.scraper.Calls()) {
-				t.Fatalf("Expected %q, received %q", tt.scraperCalls, tt.scraper.Calls())
-			}
-			if !slices.Equal(tt.scraperFactoryCalls, scraperFactory.Calls()) {
-				t.Fatalf("Expected %q, received %q", tt.scraperFactoryCalls, scraperFactory.Calls())
+			if !slices.Equal(tt.scraperCalls, scraper.Calls()) {
+				t.Fatalf("Expected %q, received %q", tt.scraperCalls, scraper.Calls())
 			}
 		})
 	}
@@ -152,8 +136,9 @@ func TestRunOnce(t *testing.T) {
 func TestProcessJob_FaultyCommit(t *testing.T) {
 	repo := &FaultyCommitRepo{}
 	scraper := &DefaultFakeScraper{}
-	scraperFactory := NewFakeScraperFactory(scraper, nil)
-	worker := NewWorker(repo, scraperFactory.scaperFactoryFunc)
+	registry := NewFakeScraperRegistry(scraper)
+	worker := NewWorker(repo, registry)
+
 	expectedCalls := []string{"UpsertProduct", "InsertPrice", "MarkDone", "Commit", "Rollback"}
 	worker.ProcessJob(context.Background(), NewFakeJob())
 	if !slices.Equal(repo.Session().Calls(), expectedCalls) {
@@ -163,10 +148,10 @@ func TestProcessJob_FaultyCommit(t *testing.T) {
 
 func TestClaimJob_FaultyTx(t *testing.T) {
 	repo := &FaultyTransactionRepo{}
-	stubScraperFactory := func(_ string) (scrapers.Scraper, error) {
-		return nil, nil
-	}
-	worker := NewWorker(repo, stubScraperFactory)
+	scraper := &DefaultFakeScraper{}
+	registry := NewFakeScraperRegistry(scraper)
+
+	worker := NewWorker(repo, registry)
 
 	_, err := worker.ClaimJob(context.Background())
 	if err == nil {
@@ -176,13 +161,15 @@ func TestClaimJob_FaultyTx(t *testing.T) {
 
 func TestProcessJob_FaultyTx(t *testing.T) {
 	repo := &FaultyTransactionRepo{}
-	scraperFactory := NewFakeScraperFactory(&DefaultFakeScraper{}, nil)
-	worker := NewWorker(repo, scraperFactory.scaperFactoryFunc)
+	scraper := &DefaultFakeScraper{}
+	registry := NewFakeScraperRegistry(scraper)
+	worker := NewWorker(repo, registry)
+
 	err := worker.ProcessJob(context.Background(), NewFakeJob())
 	if err == nil {
 		t.Fatal("error nil")
 	}
-	if slices.Contains(scraperFactory.Calls(), "New") {
+	if slices.Contains(scraper.Calls(), "New") {
 		t.Fatal("factory called")
 	}
 }
@@ -205,9 +192,9 @@ func TestRunOnce_Integration(t *testing.T) {
 	}
 
 	scraper := &DefaultFakeScraper{}
-	scraperFactory := NewFakeScraperFactory(scraper, nil)
+	registry := NewFakeScraperRegistry(scraper)
 	workerRepo := NewWorkerRepo(testDB)
-	newWorker := NewWorker(workerRepo, scraperFactory.scaperFactoryFunc)
+	newWorker := NewWorker(workerRepo, registry)
 
 	err = newWorker.RunOnce(context.Background())
 

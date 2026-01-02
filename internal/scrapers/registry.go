@@ -1,7 +1,7 @@
 /*
 uniwish.com/internal/scrapers/registry
 
-contains logic related to http interaction with zara pages
+centralizes scraper declaration and instantiation
 */
 
 package scrapers
@@ -19,7 +19,7 @@ var ErrNoScraper = errors.New("no scraper available")
 var ErrInvalidURL = errors.New("invalid url")
 
 type Registry interface {
-	AssertSupports(string) error
+	ValidateUrl(string) error
 	NewScraperFor(string) (Scraper, error)
 }
 
@@ -28,32 +28,43 @@ type ScraperRegistry struct {
 	byHost map[string]ScraperFactory
 }
 
-func (sr *ScraperRegistry) AssertSupports(rawURL string) error {
+func (sr *ScraperRegistry) getHost(rawURL string) (string, error) {
 	parsed, err := url.Parse(rawURL)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return ErrInvalidURL
+		return "", ErrInvalidURL
 	}
-
-	for h := range sr.byHost {
-		if strings.Contains(rawURL, h) {
-			return nil
+	host := parsed.Hostname()
+	for hostKey := range sr.byHost {
+		if host == hostKey || strings.HasSuffix(host, "."+hostKey) {
+			return hostKey, nil
 		}
 	}
-	return ErrNoScraper
+	return "", ErrNoScraper
+}
+
+func (sr *ScraperRegistry) ValidateUrl(rawURL string) error {
+	_, err := sr.getHost(rawURL)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (sr *ScraperRegistry) NewScraperFor(rawURL string) (Scraper, error) {
-	parsed, err := url.Parse(rawURL)
-	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
-		return nil, ErrInvalidURL
+	host, err := sr.getHost(rawURL)
+
+	if err != nil {
+		return nil, err
 	}
 
-	for scraperHost, scraperFactort := range sr.byHost {
-		if strings.Contains(parsed.Host, scraperHost) {
-			return scraperFactort(), nil
-		}
+	factory, ok := sr.byHost[host]
+	if !ok {
+		return nil, ErrNoScraper
 	}
-	return nil, ErrNoScraper
+	return factory(), nil
+
 }
 
 func NewScraperRegistry(byHostMap map[string]ScraperFactory) *ScraperRegistry {

@@ -33,7 +33,7 @@ func (s *ScrapeRequestService) Request(ctx context.Context, rawUrl string) (uuid
 		return uuid.Nil, errors.ErrInputInvalid
 	}
 
-	err := s.registry.AssertSupports(rawUrl)
+	err := s.registry.ValidateUrl(rawUrl)
 
 	switch {
 	case goErrors.Is(err, scrapers.ErrInvalidURL):

@@ -7,9 +7,12 @@ package services
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
+	apiErrors "uniwish.com/internal/api/errors"
 	"uniwish.com/internal/api/repository"
 )
 
@@ -53,7 +56,6 @@ type DefaultProductReaderService struct {
 func (s *DefaultProductReaderService) List(ctx context.Context) (*ProductListResponse, error) {
 	list, err := s.repo.ListProducts(ctx)
 	if err != nil {
-		//TODO: translate expected list product errors as api friendly errors
 		return nil, err
 	}
 
@@ -79,8 +81,14 @@ func (s *DefaultProductReaderService) Get(ctx context.Context, uuid uuid.UUID) (
 	product, err := s.repo.GetProduct(ctx, uuid)
 
 	if err != nil {
-		//TODO: translate expected get product errors as api friendly errors
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, apiErrors.ErrNoProductFound
+		}
 		return nil, err
+	}
+
+	if product == nil {
+		return nil, apiErrors.ErrNoProductFound
 	}
 
 	pir := ProductItemResponse{

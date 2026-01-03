@@ -7,9 +7,11 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/google/uuid"
+	apiErrors "uniwish.com/internal/api/errors"
 	"uniwish.com/internal/api/services"
 )
 
@@ -38,7 +40,9 @@ func (h *DefaultProductHandler) GetProduct(w http.ResponseWriter, r *http.Reques
 	product, err := h.service.Get(r.Context(), productId)
 
 	if err != nil {
-		switch err {
+		switch {
+		case errors.Is(err, apiErrors.ErrNoProductFound):
+			http.Error(w, `{"error": "not_found"}`, http.StatusNotFound)
 		default:
 			http.Error(w, `{"error": "internal_error"}`, http.StatusInternalServerError)
 		}
@@ -55,8 +59,7 @@ func (h *DefaultProductHandler) ListProducts(w http.ResponseWriter, r *http.Requ
 	list, err := h.service.List(r.Context())
 
 	if err != nil {
-		// TODO better error handling
-		switch err {
+		switch {
 		default:
 			http.Error(w, `{"error": "internal_error"}`, http.StatusInternalServerError)
 		}

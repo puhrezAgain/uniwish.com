@@ -8,6 +8,7 @@ package handlers
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -59,9 +60,7 @@ func (p *SuccessfulRepo) GetProduct(ctx context.Context, id uuid.UUID) (*reposit
 	}, nil
 }
 
-type EmptyRepo struct {
-	SuccessfulRepo
-}
+type EmptyRepo struct{}
 
 func (p *EmptyRepo) ListProducts(ctx context.Context) ([]repository.ProductListItem, error) {
 	return make([]repository.ProductListItem, 0), nil
@@ -71,9 +70,7 @@ func (p *EmptyRepo) GetProduct(ctx context.Context, id uuid.UUID) (*repository.P
 	return nil, sql.ErrNoRows
 }
 
-type FaultyRepo struct {
-	SuccessfulRepo
-}
+type FaultyRepo struct{}
 
 func (p *FaultyRepo) ListProducts(ctx context.Context) ([]repository.ProductListItem, error) {
 	return nil, sql.ErrConnDone
@@ -108,6 +105,12 @@ func TestListProducts(t *testing.T) {
 
 			if rr.Code != tt.expectedStatusCode {
 				t.Fatalf("expected status %d, got %d", tt.expectedStatusCode, rr.Code)
+				if rr.Code == http.StatusOK {
+					var resp services.ProductListResponse
+					if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+						t.Fatalf("invalid json: %v", err)
+					}
+				}
 			}
 		})
 	}

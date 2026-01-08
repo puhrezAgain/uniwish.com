@@ -105,12 +105,17 @@ func TestListProducts(t *testing.T) {
 
 			if rr.Code != tt.expectedStatusCode {
 				t.Fatalf("expected status %d, got %d", tt.expectedStatusCode, rr.Code)
+
 				if rr.Code == http.StatusOK {
 					var resp services.ProductListResponse
 					if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
 						t.Fatalf("invalid json: %v", err)
 					}
+					if len(resp.Products) != 2 {
+						t.Fatalf("execpted 2 productd, received: %d", len(resp.Products))
+					}
 				}
+
 			}
 		})
 	}
@@ -145,6 +150,16 @@ func TestGetProduct(t *testing.T) {
 
 			if rr.Code != tt.expectedStatusCode {
 				t.Fatalf("expected status %d, got %d", tt.expectedStatusCode, rr.Code)
+
+				if rr.Code == http.StatusOK {
+					var resp services.ProductDetailResponse
+					if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+						t.Fatalf("invalid json: %v", err)
+					}
+					if len(resp.Offers) != 2 {
+						t.Fatalf("expeceted 2 offers, recevied: %d", len(resp.Offers))
+					}
+				}
 			}
 		})
 	}
